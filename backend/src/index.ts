@@ -24,10 +24,23 @@ app.use(
   })
 );
 
-// 2. CORS configuration
+// 2. CORS configuration (allow Vercel, Render, and local development)
 app.use(
   cors({
-    origin: FRONTEND_URL,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+      if (
+        origin.includes('vercel.app') ||
+        origin.includes('localhost') ||
+        origin.includes('onrender.com') ||
+        FRONTEND_URL === '*' ||
+        origin === FRONTEND_URL
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Permissive for production deployment
+    },
     credentials: true,
   })
 );
