@@ -301,3 +301,77 @@ export const recordCustomerPayment = async (req: AuthRequest, res: Response) => 
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const updateCustomer = async (req: AuthRequest, res: Response) => {
+  try {
+    const { customerId } = req.params;
+    const { name, mobile, phone, email, address, notes, pendingBalanceRupees } = req.body;
+
+    const existing = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    const resolvedMobile = mobile || phone || existing.mobile;
+    const updateData: any = {
+      name: name || existing.name,
+      mobile: resolvedMobile,
+      email: email !== undefined ? email : existing.email,
+      address: address !== undefined ? address : existing.address,
+      notes: notes !== undefined ? notes : existing.notes,
+    };
+
+    if (pendingBalanceRupees !== undefined && pendingBalanceRupees !== null) {
+      const newPendingPaise = rupeesToPaise(pendingBalanceRupees);
+      updateData.pendingBalance = newPendingPaise;
+      updateData.totalBilled = existing.totalPaid + newPendingPaise;
+
+      const pendingRec = await prisma.receivable.findFirst({
+        where: { customerId, status: { in: ['PENDING', 'PARTIALLY_PAID'] } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (pendingRec) {
+        await prisma.receivable.update({
+          where: { id: pendingRec.id },
+          data: {
+            totalAmount: newPendingPaise,
+            pendingAmount: newPendingPaise,
+          },
+        });
+      }
+    }
+
+    const updated = await prisma.customer.update({
+      where: { id: customerId },
+      data: updateData,
+    });
+
+    broadcastEvent('customer_updated', { customerId: updated.id });
+    res.json({ success: true, message: 'Customer updated successfully', customer: updated });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to update customer' });
+  }
+};
+
+export const deleteCustomer = async (req: AuthRequest, res: Response) => {
+  try {
+    const { customerId } = req.params;
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.receivable.deleteMany({ where: { customerId } });
+      await tx.payment.deleteMany({ where: { customerId } });
+      await tx.customer.delete({ where: { id: customerId } });
+    });
+
+    broadcastEvent('customer_updated', { customerId });
+    res.json({ success: true, message: `Customer "${customer.name}" deleted successfully` });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to delete customer' });
+  }
+};
+

@@ -11,6 +11,8 @@ import {
   CreditCard,
   RefreshCw,
   X,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 
 const Dealers: React.FC = () => {
@@ -18,8 +20,15 @@ const Dealers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [newDealerModal, setNewDealerModal] = useState(false);
+  const [editModalDealer, setEditModalDealer] = useState<Dealer | null>(null);
   const [paymentModalDealer, setPaymentModalDealer] = useState<Dealer | null>(null);
   const [billModalDealer, setBillModalDealer] = useState<Dealer | null>(null);
+
+  // Edit Dealer Form
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editGstin, setEditGstin] = useState('');
+  const [editPendingRupees, setEditPendingRupees] = useState('');
 
   // New Dealer Form
   const [name, setName] = useState('');
@@ -97,6 +106,48 @@ const Dealers: React.FC = () => {
       alert(err.response?.data?.error || err.response?.data?.message || 'Failed to create dealer');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEditModal = (dealer: Dealer) => {
+    setEditModalDealer(dealer);
+    setEditName(dealer.name);
+    setEditPhone(dealer.phone || '');
+    setEditGstin(dealer.gstin || '');
+    setEditPendingRupees((dealer.pendingBalance / 100).toString());
+  };
+
+  const handleUpdateDealer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editModalDealer) return;
+    setSaving(true);
+    try {
+      await api.put(`/dealers/${editModalDealer.id}`, {
+        name: editName,
+        companyName: editName,
+        phone: editPhone,
+        mobile: editPhone,
+        gstin: editGstin,
+        pendingBalanceRupees: parseFloat(editPendingRupees) || 0,
+      });
+      setEditModalDealer(null);
+      await fetchDealers();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update dealer');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteDealer = async (dealerId: string, dealerName: string) => {
+    if (!window.confirm(`Are you sure you want to delete supplier "${dealerName}"? All associated payables will also be removed.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/dealers/${dealerId}`);
+      await fetchDealers();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete dealer');
     }
   };
 
@@ -218,15 +269,31 @@ const Dealers: React.FC = () => {
                       <span>{dealer.phone}</span>
                     </div>
                   </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      dealer.pendingBalance > 0
-                        ? 'bg-rose-100 text-rose-800'
-                        : 'bg-emerald-100 text-emerald-800'
-                    }`}
-                  >
-                    {dealer.pendingBalance > 0 ? 'Payable' : 'Cleared'}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        dealer.pendingBalance > 0
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}
+                    >
+                      {dealer.pendingBalance > 0 ? 'Payable' : 'Cleared'}
+                    </span>
+                    <button
+                      onClick={() => openEditModal(dealer)}
+                      title="Edit Dealer / Balance"
+                      className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDealer(dealer.id, dealer.name)}
+                      title="Delete Dealer"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {dealer.gstin && (
@@ -527,6 +594,80 @@ const Dealers: React.FC = () => {
                 className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
               >
                 {saving ? 'Creating...' : 'Add Bill to Payables'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT DEALER MODAL */}
+      {editModalDealer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-base text-slate-800">Edit Dealer & Due Balance</h3>
+              <button onClick={() => setEditModalDealer(null)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateDealer} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Supplier / Company Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  GSTIN
+                </label>
+                <input
+                  type="text"
+                  value={editGstin}
+                  onChange={(e) => setEditGstin(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">
+                  Correct Due / Pending Payable (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  value={editPendingRupees}
+                  onChange={(e) => setEditPendingRupees(e.target.value)}
+                  placeholder="e.g. 55912"
+                  className="w-full px-3 py-2 border border-rose-300 bg-rose-50/50 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Enter exact rupees here (e.g. 55912). This will immediately correct the pending balance.
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-all shadow-md"
+              >
+                {saving ? 'Updating...' : 'Save & Update Dealer'}
               </button>
             </form>
           </div>

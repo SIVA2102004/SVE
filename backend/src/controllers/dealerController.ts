@@ -320,3 +320,85 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const updateDealer = async (req: AuthRequest, res: Response) => {
+  try {
+    const { dealerId } = req.params;
+    const { name, companyName, mobile, phone, email, address, gstNumber, gstin, notes, pendingBalanceRupees } = req.body;
+
+    const existingDealer = await prisma.dealer.findUnique({ where: { id: dealerId } });
+    if (!existingDealer) {
+      return res.status(404).json({ success: false, message: 'Dealer not found' });
+    }
+
+    const resolvedMobile = mobile || phone || existingDealer.mobile;
+    const resolvedCompany = companyName || name || existingDealer.companyName;
+    const resolvedGst = gstNumber || gstin !== undefined ? (gstNumber || gstin) : existingDealer.gstNumber;
+
+    const updateData: any = {
+      name: name || existingDealer.name,
+      companyName: resolvedCompany,
+      mobile: resolvedMobile,
+      email: email !== undefined ? email : existingDealer.email,
+      address: address !== undefined ? address : existingDealer.address,
+      gstNumber: resolvedGst || null,
+      notes: notes !== undefined ? notes : existingDealer.notes,
+    };
+
+    // If owner/manager wants to directly correct/adjust the pending balance amount
+    if (pendingBalanceRupees !== undefined && pendingBalanceRupees !== null) {
+      const newPendingPaise = rupeesToPaise(pendingBalanceRupees);
+      updateData.pendingBalance = newPendingPaise;
+      updateData.totalBilled = existingDealer.totalPaid + newPendingPaise;
+
+      // Also update the latest pending payable record if one exists, or create an adjustment payable
+      const pendingPayable = await prisma.payable.findFirst({
+        where: { dealerId, status: { in: ['PENDING', 'PARTIALLY_PAID'] } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (pendingPayable) {
+        await prisma.payable.update({
+          where: { id: pendingPayable.id },
+          data: {
+            totalAmount: newPendingPaise,
+            pendingAmount: newPendingPaise,
+          },
+        });
+      }
+    }
+
+    const updated = await prisma.dealer.update({
+      where: { id: dealerId },
+      data: updateData,
+    });
+
+    broadcastEvent('dealer_updated', { dealerId: updated.id });
+    res.json({ success: true, message: 'Dealer updated successfully', dealer: updated });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to update dealer' });
+  }
+};
+
+export const deleteDealer = async (req: AuthRequest, res: Response) => {
+  try {
+    const { dealerId } = req.params;
+    const dealer = await prisma.dealer.findUnique({ where: { id: dealerId } });
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer not found' });
+    }
+
+    // Cascade delete dealer records
+    await prisma.$transaction(async (tx) => {
+      await tx.payable.deleteMany({ where: { dealerId } });
+      await tx.payment.deleteMany({ where: { dealerId } });
+      await tx.dealer.delete({ where: { id: dealerId } });
+    });
+
+    broadcastEvent('dealer_updated', { dealerId });
+    res.json({ success: true, message: `Dealer "${dealer.name}" deleted successfully` });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to delete dealer' });
+  }
+};
+

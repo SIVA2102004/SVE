@@ -19,12 +19,16 @@ import {
   createCustomer,
   createCustomerReceivable,
   recordCustomerPayment,
+  updateCustomer,
+  deleteCustomer,
 } from '../controllers/customerController.js';
 import {
   getDealers,
   createDealer,
   createDealerPayable,
   payDealer,
+  updateDealer,
+  deleteDealer,
 } from '../controllers/dealerController.js';
 import {
   getTransactions,
@@ -79,6 +83,8 @@ router.get('/dashboard', getDashboardMetrics as any);
 // 2. Customers & Receivables
 router.get('/customers', getCustomers as any);
 router.post('/customers', createCustomer as any);
+router.put('/customers/:customerId', updateCustomer as any);
+router.delete('/customers/:customerId', requireRoles('OWNER'), deleteCustomer as any);
 router.post('/customers/:customerId/receivables', createCustomerReceivable as any);
 router.post('/customers/:customerId/pay', recordCustomerPayment as any);
 router.post('/customers/:customerId/payment', recordCustomerPayment as any);
@@ -86,6 +92,8 @@ router.post('/customers/:customerId/payment', recordCustomerPayment as any);
 // 3. Dealers & Payables
 router.get('/dealers', getDealers as any);
 router.post('/dealers', createDealer as any);
+router.put('/dealers/:dealerId', updateDealer as any);
+router.delete('/dealers/:dealerId', requireRoles('OWNER'), deleteDealer as any);
 router.post('/dealers/:dealerId/payables', createDealerPayable as any);
 router.post('/dealers/:dealerId/pay', payDealer as any);
 router.post('/dealers/:dealerId/payment', payDealer as any);

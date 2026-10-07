@@ -1,8 +1,9 @@
 /**
  * Formats integer paise or rupees into standard Indian numbering format (e.g. ₹1,25,000)
+ * By default in ShopFlow/SVE database and API, financial values are stored in paise.
  */
-export function formatINR(amountInPaiseOrRupees: number, isPaise = false): string {
-  const rupees = isPaise ? amountInPaiseOrRupees / 100 : amountInPaiseOrRupees;
+export function formatINR(amountInPaiseOrRupees: number, isPaise = true): string {
+  const rupees = isPaise ? (amountInPaiseOrRupees || 0) / 100 : (amountInPaiseOrRupees || 0);
   const isNegative = rupees < 0;
   const absVal = Math.abs(rupees);
 
