@@ -52,7 +52,7 @@ const uploadDir = path.resolve(process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadDir));
 
 // 6. Health check endpoint
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'healthy',
     application: 'ShopFlow API Server',

@@ -130,7 +130,7 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
 
     const activeLoans = await prisma.loan.findMany({ where: { status: 'ACTIVE' } });
     const activeStaff = await prisma.staff.findMany({ where: { status: 'ACTIVE' } });
-    const monthlyEmiPaise = activeLoans.reduce((sum, l) => sum + l.monthlyEmi, 0);
+    const monthlyEmiPaise = activeLoans.reduce((sum, l) => sum + (l.emiAmount || 0), 0);
     const monthlySalaryPaise = activeStaff.reduce((sum, s) => sum + s.monthlySalary, 0);
 
     const upcomingList = [
@@ -138,7 +138,7 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
         type: 'Dealer Payable',
         party: p.dealer.name,
         amount: p.pendingAmount,
-        dueDate: p.dueDate.toISOString(),
+        dueDate: p.dueDate ? p.dueDate.toISOString() : new Date().toISOString(),
         description: p.notes || `Invoice #${p.invoiceNumber}`,
         refId: p.id,
       })),
@@ -146,7 +146,7 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
         type: 'Customer Receivable',
         party: r.customer.name,
         amount: r.pendingAmount,
-        dueDate: r.dueDate.toISOString(),
+        dueDate: r.dueDate ? r.dueDate.toISOString() : new Date().toISOString(),
         description: r.notes || `Bill #${r.invoiceNumber}`,
         refId: r.id,
       })),
