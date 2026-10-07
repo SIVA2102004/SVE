@@ -3,24 +3,21 @@ import { Server as HTTPServer } from 'http';
 
 let ioInstance: SocketIOServer | null = null;
 
-export function initWebSocket(server: HTTPServer, frontendUrl: string): SocketIOServer {
+export function initWebSocket(server: HTTPServer, _frontendUrl: string): SocketIOServer {
   ioInstance = new SocketIOServer(server, {
     cors: {
-      origin: frontendUrl || '*',
+      origin: (origin, callback) => {
+        // Allow all Vercel, localhost, and cloud clients
+        callback(null, true);
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },
   });
 
   ioInstance.on('connection', (socket) => {
-    // console.log(`🔌 Client connected to ShopFlow real-time hub: ${socket.id}`);
-
     socket.on('join_shop', (room) => {
-      socket.join(room || 'shopflow_main');
-    });
-
-    socket.on('disconnect', () => {
-      // console.log(`Client disconnected: ${socket.id}`);
+      socket.join(room || 'sve_main');
     });
   });
 
@@ -29,7 +26,12 @@ export function initWebSocket(server: HTTPServer, frontendUrl: string): SocketIO
 
 export function broadcastEvent(event: string, payload: any) {
   if (ioInstance) {
+    // Emit the exact event name
     ioInstance.emit(event, payload);
+    // Also emit uppercase version for flexible listener compatibility
+    ioInstance.emit(event.toUpperCase(), payload);
+    // Generic event to trigger instant re-fetch on all connected screens
+    ioInstance.emit('DATA_UPDATED', { event, payload });
   }
 }
 
