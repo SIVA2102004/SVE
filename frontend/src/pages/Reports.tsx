@@ -35,7 +35,7 @@ const Reports: React.FC = () => {
     if (!cashFlowData) return;
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text('SHOPFLOW – MONTHLY CASH FLOW STATEMENT', 14, 20);
+    doc.text('SVE – MONTHLY CASH FLOW STATEMENT', 14, 20);
     doc.setFontSize(10);
     doc.text(`Period: ${cashFlowData.period.start} to ${cashFlowData.period.end}`, 14, 28);
     doc.line(14, 32, 196, 32);
@@ -72,7 +72,7 @@ const Reports: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `ShopFlow_Statement.csv`);
+    link.setAttribute('download', `SVE_Statement.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

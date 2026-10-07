@@ -58,7 +58,7 @@ const Layout: React.FC = () => {
               ₹
             </div>
             <div>
-              <h1 className="font-bold text-lg text-white tracking-wide">ShopFlow</h1>
+              <h1 className="font-bold text-lg text-white tracking-wider">SVE</h1>
               <p className="text-xs text-slate-400 font-medium">Business Finance</p>
             </div>
           </div>
@@ -134,7 +134,7 @@ const Layout: React.FC = () => {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center font-bold text-white text-base">
               ₹
             </div>
-            <span className="font-bold text-base tracking-wide text-white">ShopFlow</span>
+            <span className="font-bold text-base tracking-wider text-white">SVE</span>
           </div>
 
           <div className="flex items-center space-x-3">

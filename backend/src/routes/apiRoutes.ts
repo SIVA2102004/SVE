@@ -3,7 +3,7 @@ import { authenticateToken, requireRoles } from '../middleware/auth.js';
 import { uploadMiddleware } from '../middleware/upload.js';
 
 // Controllers
-import { login, logout, logoutAllDevices, getMe } from '../controllers/authController.js';
+import { login, logout, logoutAllDevices, getMe, register, validateAccessCode } from '../controllers/authController.js';
 import { getDashboardMetrics } from '../controllers/dashboardController.js';
 import {
   getCustomers,
@@ -34,19 +34,28 @@ import {
   uploadReceipt,
   getReceipts,
   getAuditLogs,
+  getShopSettings,
+  updateShopSettings,
 } from '../controllers/miscController.js';
 import { getCashFlowReport, getProfitLossReport } from '../controllers/reportController.js';
 
 const router = Router();
 
-// ================= AUTH ROUTES =================
+// ================= AUTH & PUBLIC ROUTES =================
 router.post('/auth/login', login as any);
+router.post('/auth/register', register as any);
+router.post('/auth/validate-code', validateAccessCode as any);
 router.post('/auth/logout', authenticateToken as any, logout as any);
 router.post('/auth/logout-all', authenticateToken as any, logoutAllDevices as any);
 router.get('/auth/me', authenticateToken as any, getMe as any);
 
 // ================= PROTECTED CORE ROUTES =================
 router.use(authenticateToken as any);
+
+// Settings
+router.get('/settings', getShopSettings as any);
+router.put('/settings', requireRoles('OWNER'), updateShopSettings as any);
+
 
 // Payment Accounts
 router.get('/payment-accounts', getPaymentAccounts as any);

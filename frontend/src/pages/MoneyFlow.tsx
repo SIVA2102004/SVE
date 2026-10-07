@@ -87,17 +87,51 @@ const MoneyFlow: React.FC = () => {
     return matchesSearch && matchesType;
   });
 
+  const exportTransactionsCSV = () => {
+    if (filtered.length === 0) {
+      alert('No transactions to export');
+      return;
+    }
+    let csv = 'Txn No,Date,Party / Destination,Category,Account,Direction,Amount (INR),Status\n';
+    filtered.forEach((tx) => {
+      const dateStr = formatDate(tx.createdAt);
+      const party = (tx.partyName || tx.description || '').replace(/,/g, ' ');
+      const cat = (tx.category || '').replace(/,/g, ' ');
+      const acc = (tx.paymentAccount?.name || 'Account').replace(/,/g, ' ');
+      const dir = tx.direction;
+      const amt = tx.amount / 100;
+      const status = tx.isVoid ? 'VOID' : 'COMPLETED';
+      csv += `${tx.transactionNo},${dateStr},${party},${cat},${acc},${dir},${amt},${status}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `SVE_Transactions_Ledger_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Money Flow & Ledger</h2>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">SVE Money Flow & Ledger</h2>
           <p className="text-xs text-slate-500 font-medium mt-1">
             Complete immutable transaction log with audit capability & void tracking
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <button
+            onClick={exportTransactionsCSV}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Download CSV</span>
+          </button>
           <button
             onClick={fetchTransactions}
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"

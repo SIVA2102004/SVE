@@ -146,6 +146,61 @@ export const getReceipts = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getShopSettings = async (_req: AuthRequest, res: Response) => {
+  try {
+    let settings = await prisma.shopSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.shopSettings.create({
+        data: {
+          shopName: 'SVE Store',
+          tagline: 'Automotive Spare Parts & Retail',
+          email: 'contact@sve.in',
+          accessCode: 'SVE-2026',
+        },
+      });
+    }
+    res.json({ success: true, settings });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateShopSettings = async (req: AuthRequest, res: Response) => {
+  try {
+    const { shopName, tagline, address, phone, email, gstNumber, accessCode } = req.body;
+    let settings = await prisma.shopSettings.findFirst();
+
+    const updateData: any = {};
+    if (shopName !== undefined) updateData.shopName = shopName;
+    if (tagline !== undefined) updateData.tagline = tagline;
+    if (address !== undefined) updateData.address = address;
+    if (phone !== undefined) updateData.phone = phone;
+    if (email !== undefined) updateData.email = email;
+    if (gstNumber !== undefined) updateData.gstNumber = gstNumber;
+    if (accessCode !== undefined) updateData.accessCode = accessCode.trim();
+
+    if (!settings) {
+      settings = await prisma.shopSettings.create({
+        data: {
+          shopName: shopName || 'SVE Store',
+          accessCode: accessCode || 'SVE-2026',
+          ...updateData,
+        },
+      });
+    } else {
+      settings = await prisma.shopSettings.update({
+        where: { id: settings.id },
+        data: updateData,
+      });
+    }
+
+    broadcastEvent('settings_updated', settings);
+    res.json({ success: true, settings });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const getAuditLogs = async (req: AuthRequest, res: Response) => {
   try {
     const logs = await prisma.auditLog.findMany({
@@ -157,3 +212,4 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+

@@ -160,7 +160,7 @@ const Customers: React.FC = () => {
   const generateReceiptPDF = (custName: string, custPhone: string, amt: string, txNo: string, remarks: string) => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text('SHOPFLOW RETAIL & FINANCE', 14, 20);
+    doc.text('SVE RETAIL & FINANCE', 14, 20);
     doc.setFontSize(10);
     doc.text('Official Payment Receipt / Acknowledgement', 14, 28);
     doc.line(14, 32, 196, 32);
@@ -187,7 +187,7 @@ const Customers: React.FC = () => {
 
   const openWhatsAppShare = (cust: Customer) => {
     const pending = (cust.pendingBalance / 100).toLocaleString('en-IN');
-    const msg = `Dear ${cust.name}, this is a gentle reminder from ShopFlow that your outstanding balance is ₹${pending}. Please clear the due amount at your earliest convenience. Thank you!`;
+    const msg = `Dear ${cust.name}, this is a gentle reminder from SVE that your outstanding balance is ₹${pending}. Please clear the due amount at your earliest convenience. Thank you!`;
     const cleanPhone = cust.phone.replace(/[^0-9]/g, '');
     const url = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');

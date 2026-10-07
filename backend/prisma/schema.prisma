@@ -50,11 +50,11 @@ model Session {
 
 model ShopSettings {
   id                  String   @id @default(uuid())
-  shopName            String   @default("ShopFlow Store")
+  shopName            String   @default("SVE Store")
   tagline             String?  @default("Automotive Spare Parts & Retail")
   address             String?  @default("Shop #12, Commercial Complex")
   phone               String?  @default("+91 98765 43210")
-  email               String?  @default("contact@shopflow.in")
+  email               String?  @default("contact@sve.in")
   gstNumber           String?  @default("29ABCDE1234F1Z5")
   currency            String   @default("INR")
   currencySymbol      String   @default("₹")
@@ -62,6 +62,7 @@ model ShopSettings {
   receiptPrefix       String   @default("REC-")
   invoicePrefix       String   @default("INV-")
   defaultReminderDays Int      @default(3)
+  accessCode          String   @default("SVE-2026")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

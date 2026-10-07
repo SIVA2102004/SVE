@@ -68,7 +68,7 @@ app.use('/uploads', express.static(uploadDir));
 app.get('/health', (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'healthy',
-    application: 'ShopFlow API Server',
+    application: 'SVE API Server',
     systemTime: new Date().toISOString(),
     currency: 'INR (₹)',
   });
@@ -90,6 +90,6 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 initWebSocket(server, FRONTEND_URL);
 
 server.listen(PORT, () => {
-  console.log(`🚀 ShopFlow Production Server running on http://localhost:${PORT}`);
+  console.log(`🚀 SVE Production Server running on http://localhost:${PORT}`);
   console.log(`📡 WebSocket real-time engine ready for ${FRONTEND_URL}`);
 });

@@ -214,12 +214,185 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       success: true,
       user,
       settings: settings || {
-        shopName: 'ShopFlow Store',
+        shopName: 'SVE Store',
         currency: 'INR',
         currencySymbol: '₹',
+        accessCode: 'SVE-2026',
       },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+const registerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+  email: z.string().email('Valid email is required'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  phone: z.string().optional(),
+  role: z.enum(['OWNER', 'MANAGER', 'STAFF']).default('STAFF'),
+  companyName: z.string().optional(),
+  accessCode: z.string().optional(),
+});
+
+export const register = async (req: Request, res: Response) => {
+  try {
+    const data = registerSchema.parse(req.body);
+
+    // Check if any user exists in the database
+    const userCount = await prisma.user.count();
+    let shopSettings = await prisma.shopSettings.findFirst();
+
+    let targetRole = data.role;
+
+    // If no users exist, the very first registrant is automatically the OWNER
+    if (userCount === 0) {
+      targetRole = 'OWNER';
+      // If companyName was provided, initialize/update shop settings
+      const newAccessCode = data.accessCode?.trim() || 'SVE-2026';
+      if (!shopSettings) {
+        shopSettings = await prisma.shopSettings.create({
+          data: {
+            shopName: data.companyName?.trim() || 'SVE Store',
+            accessCode: newAccessCode,
+            email: data.email.toLowerCase(),
+            phone: data.phone || null,
+          },
+        });
+      } else {
+        shopSettings = await prisma.shopSettings.update({
+          where: { id: shopSettings.id },
+          data: {
+            shopName: data.companyName?.trim() || shopSettings.shopName,
+            accessCode: newAccessCode,
+          },
+        });
+      }
+    } else {
+      // Users already exist.
+      // If registering as OWNER or specifying a new access code, check if an owner already exists
+      const existingOwner = await prisma.user.findFirst({ where: { role: 'OWNER' } });
+
+      if (targetRole === 'OWNER') {
+        if (existingOwner) {
+          // If an owner already exists, require the current company accessCode to confirm owner-level authorization
+          const currentCode = shopSettings?.accessCode || 'SVE-2026';
+          if (!data.accessCode || data.accessCode.trim() !== currentCode) {
+            return res.status(403).json({
+              success: false,
+              message: 'Invalid Company Access Code. An Owner is already registered for this shop.',
+            });
+          }
+        } else {
+          // No owner currently exists, allow becoming owner
+          if (data.companyName) {
+            if (shopSettings) {
+              await prisma.shopSettings.update({
+                where: { id: shopSettings.id },
+                data: {
+                  shopName: data.companyName.trim(),
+                  accessCode: data.accessCode?.trim() || shopSettings.accessCode,
+                },
+              });
+            }
+          }
+        }
+      } else {
+        // Registering as MANAGER or STAFF:
+        // Must provide the Company Access Code set by the owner
+        const requiredCode = shopSettings?.accessCode || 'SVE-2026';
+        if (!data.accessCode || data.accessCode.trim() !== requiredCode) {
+          return res.status(403).json({
+            success: false,
+            message: 'Invalid Company Access Code! Please request the company code from the Owner.',
+          });
+        }
+      }
+    }
+
+    // Check username or email uniqueness
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: data.username.toLowerCase() },
+          { email: data.email.toLowerCase() },
+        ],
+      },
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: existing.username.toLowerCase() === data.username.toLowerCase()
+          ? 'Username is already taken'
+          : 'Email is already registered',
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 10);
+
+    const newUser = await prisma.user.create({
+      data: {
+        name: data.name.trim(),
+        username: data.username.toLowerCase().trim(),
+        email: data.email.toLowerCase().trim(),
+        passwordHash,
+        phone: data.phone || null,
+        role: targetRole,
+        isActive: true,
+      },
+    });
+
+    // Generate JWT token for instant login
+    const tokenPayload = {
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
+    };
+
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
+
+    res.status(201).json({
+      success: true,
+      message: `${targetRole} account registered successfully!`,
+      token,
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.role,
+      },
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Registration failed' });
+  }
+};
+
+export const validateAccessCode = async (req: Request, res: Response) => {
+  try {
+    const { accessCode } = req.body;
+    const settings = await prisma.shopSettings.findFirst();
+    const correctCode = settings?.accessCode || 'SVE-2026';
+
+    if (!accessCode || accessCode.trim() !== correctCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Company Access Code. Please ask your shop owner for the valid access code.',
+      });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      shopName: settings?.shopName || 'SVE Store',
+      message: 'Company Access Code verified successfully!',
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
