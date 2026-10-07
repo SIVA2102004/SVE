@@ -1,0 +1,476 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String    @id @default(uuid())
+  username       String    @unique
+  email          String    @unique
+  passwordHash   String
+  name           String
+  phone          String?
+  role           String    @default("STAFF") // OWNER, MANAGER, STAFF
+  isActive       Boolean   @default(true)
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sessions        Session[]
+  transactions    Transaction[]
+  paymentsCreated Payment[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String
+  token        String    @unique
+  refreshToken String    @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model ShopSettings {
+  id                  String   @id @default(uuid())
+  shopName            String   @default("ShopFlow Store")
+  tagline             String?  @default("Automotive Spare Parts & Retail")
+  address             String?  @default("Shop #12, Commercial Complex")
+  phone               String?  @default("+91 98765 43210")
+  email               String?  @default("contact@shopflow.in")
+  gstNumber           String?  @default("29ABCDE1234F1Z5")
+  currency            String   @default("INR")
+  currencySymbol      String   @default("₹")
+  openingBalance      Int      @default(0) // in paise
+  receiptPrefix       String   @default("REC-")
+  invoicePrefix       String   @default("INV-")
+  defaultReminderDays Int      @default(3)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("shop_settings")
+}
+
+model PaymentMethodAccount {
+  id             String   @id @default(uuid())
+  name           String // e.g. Cash in Register, Current Bank Account, Shop UPI Merchant
+  type           String // CASH, BANK, UPI, CHEQUE, CARD, OTHER
+  accountNumber  String?
+  bankName       String?
+  openingBalance Int      @default(0) // in paise
+  currentBalance Int      @default(0) // in paise
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  transactions Transaction[]
+  payments     Payment[]
+
+  @@map("payment_method_accounts")
+}
+
+model Customer {
+  id             String   @id @default(uuid())
+  name           String
+  mobile         String
+  email          String?
+  address        String?
+  notes          String?
+  totalBilled    Int      @default(0) // in paise
+  totalPaid      Int      @default(0) // in paise
+  pendingBalance Int      @default(0) // in paise
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  receivables Receivable[]
+  payments    Payment[]
+
+  @@index([mobile])
+  @@map("customers")
+}
+
+model Dealer {
+  id             String   @id @default(uuid())
+  name           String
+  companyName    String
+  mobile         String
+  email          String?
+  address        String?
+  gstNumber      String?
+  paymentTerms   String?
+  notes          String?
+  totalBilled    Int      @default(0) // in paise
+  totalPaid      Int      @default(0) // in paise
+  pendingBalance Int      @default(0) // in paise
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  payables Payable[]
+  payments Payment[]
+
+  @@index([mobile])
+  @@map("dealers")
+}
+
+model Receivable {
+  id            String    @id @default(uuid())
+  customerId    String
+  invoiceNumber String
+  totalAmount   Int // in paise
+  paidAmount    Int       @default(0) // in paise
+  pendingAmount Int // in paise
+  dueDate       DateTime?
+  status        String    @default("PENDING") // PENDING, PARTIALLY_PAID, PAID, OVERDUE
+  notes         String?
+  receiptUrl    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([status])
+  @@map("receivables")
+}
+
+model Payable {
+  id            String    @id @default(uuid())
+  dealerId      String
+  invoiceNumber String
+  purchaseDate  DateTime  @default(now())
+  totalAmount   Int // in paise
+  paidAmount    Int       @default(0) // in paise
+  pendingAmount Int // in paise
+  dueDate       DateTime?
+  status        String    @default("PENDING") // PENDING, PARTIALLY_PAID, PAID, OVERDUE
+  notes         String?
+  receiptUrl    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  dealer   Dealer    @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([dealerId])
+  @@index([status])
+  @@map("payables")
+}
+
+model Expense {
+  id            String    @id @default(uuid())
+  name          String
+  category      String // Shop Rent, Electricity, Internet, Transport, Fuel, Maintenance, Insurance, EMI, Loan, Staff Salary, Repairs, Taxes, Office Expenses, Purchases, Miscellaneous, Custom
+  amount        Int // in paise
+  date          DateTime  @default(now())
+  paymentMethod String    @default("CASH")
+  paidTo        String?
+  description   String?
+  receiptUrl    String?
+  isRecurring   Boolean   @default(false)
+  dueDate       DateTime?
+  isVoided      Boolean   @default(false)
+  voidReason    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  transaction Transaction?
+
+  @@index([category])
+  @@index([date])
+  @@map("expenses")
+}
+
+model Transaction {
+  id                     String   @id @default(uuid())
+  date                   DateTime @default(now())
+  type                   String // INCOME, EXPENSE, TRANSFER, RECEIVABLE_PAYMENT, PAYABLE_PAYMENT, SALARY, EMI, LOAN, INSURANCE
+  category               String
+  amount                 Int // in paise
+  paymentMethod          String   @default("CASH") // CASH, UPI, BANK_TRANSFER, CHEQUE, CARD, OTHER
+  paymentMethodAccountId String?
+  source                 String?
+  destination            String?
+  reference              String? // Invoice/Receipt/Tx Ref
+  description            String?
+  status                 String   @default("COMPLETED") // COMPLETED, VOID, CANCELLED, REVERSED
+  voidReason             String?
+  createdById            String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  paymentId         String? @unique
+  expenseId         String? @unique
+  salaryRecordId    String? @unique
+  loanInstallmentId String? @unique
+
+  createdBy            User                  @relation(fields: [createdById], references: [id])
+  paymentMethodAccount PaymentMethodAccount? @relation(fields: [paymentMethodAccountId], references: [id])
+  payment              Payment?              @relation(fields: [paymentId], references: [id])
+  expense              Expense?              @relation(fields: [expenseId], references: [id])
+  salaryRecord         SalaryRecord?         @relation(fields: [salaryRecordId], references: [id])
+  loanInstallment      LoanInstallment?      @relation(fields: [loanInstallmentId], references: [id])
+  auditLogs            AuditLog[]
+
+  @@index([date])
+  @@index([type])
+  @@map("transactions")
+}
+
+model Payment {
+  id                     String   @id @default(uuid())
+  receiptNumber          String   @unique
+  date                   DateTime @default(now())
+  type                   String // CUSTOMER_INCOME, DEALER_EXPENSE
+  amount                 Int // in paise
+  paymentMethod          String   @default("CASH")
+  paymentMethodAccountId String?
+  customerId             String?
+  dealerId               String?
+  receivableId           String?
+  payableId              String?
+  notes                  String?
+  receiptUrl             String?
+  idempotencyKey         String?  @unique
+  createdById            String
+  createdAt              DateTime @default(now())
+
+  createdBy            User                  @relation(fields: [createdById], references: [id])
+  paymentMethodAccount PaymentMethodAccount? @relation(fields: [paymentMethodAccountId], references: [id])
+  customer             Customer?             @relation(fields: [customerId], references: [id])
+  dealer               Dealer?               @relation(fields: [dealerId], references: [id])
+  receivable           Receivable?           @relation(fields: [receivableId], references: [id])
+  payable              Payable?              @relation(fields: [payableId], references: [id])
+  transaction          Transaction?
+
+  @@index([customerId])
+  @@index([dealerId])
+  @@map("payments")
+}
+
+model Staff {
+  id            String   @id @default(uuid())
+  name          String
+  mobile        String
+  address       String?
+  joiningDate   DateTime @default(now())
+  salaryType    String   @default("MONTHLY") // MONTHLY, DAILY, WEEKLY, HOURLY
+  monthlySalary Int      @default(0) // in paise
+  dailyWage     Int      @default(0) // in paise
+  bankDetails   String?
+  status        String   @default("ACTIVE")
+  photoUrl      String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  attendance    Attendance[]
+  salaryRecords SalaryRecord[]
+
+  @@map("staff")
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  staffId   String
+  date      DateTime
+  status    String // PRESENT, ABSENT, HALF_DAY, LEAVE, HOLIDAY
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date])
+  @@index([date])
+  @@map("attendance")
+}
+
+model SalaryRecord {
+  id                   String    @id @default(uuid())
+  staffId              String
+  month                Int // 1-12
+  year                 Int // 2026
+  baseSalary           Int // in paise
+  attendanceAdjustment Int       @default(0) // in paise
+  overtime             Int       @default(0) // in paise
+  bonus                Int       @default(0) // in paise
+  advance              Int       @default(0) // in paise
+  deduction            Int       @default(0) // in paise
+  finalSalary          Int // in paise
+  paidAmount           Int       @default(0) // in paise
+  pendingAmount        Int       @default(0) // in paise
+  status               String    @default("PENDING") // PENDING, PAID, PARTIAL
+  paymentMethod        String    @default("CASH")
+  paidDate             DateTime?
+  receiptUrl           String?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  staff       Staff        @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  transaction Transaction?
+
+  @@unique([staffId, month, year])
+  @@map("salary_records")
+}
+
+model Loan {
+  id                  String    @id @default(uuid())
+  loanName            String
+  lender              String // Bank or Financier
+  principalAmount     Int // in paise
+  interestRate        Float // Annual rate %
+  tenureMonths        Int
+  emiAmount           Int // in paise
+  startDate           DateTime
+  endDate             DateTime?
+  nextEmiDate         DateTime?
+  remainingAmount     Int // in paise
+  accountNumberMasked String?
+  status              String    @default("ACTIVE") // ACTIVE, CLOSED
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  installments LoanInstallment[]
+
+  @@map("loans")
+}
+
+model LoanInstallment {
+  id                 String    @id @default(uuid())
+  loanId             String
+  installmentNumber  Int
+  dueDate            DateTime
+  emiAmount          Int // in paise
+  principalComponent Int // in paise
+  interestComponent  Int // in paise
+  remainingPrincipal Int // in paise
+  status             String    @default("PENDING") // PENDING, PAID, OVERDUE
+  paidDate           DateTime?
+  paidAmount         Int       @default(0)
+  paymentMethod      String    @default("BANK_TRANSFER")
+  receiptUrl         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  loan        Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  transaction Transaction?
+
+  @@index([loanId])
+  @@index([dueDate])
+  @@map("loan_installments")
+}
+
+model InsurancePolicy {
+  id              String    @id @default(uuid())
+  insuranceType   String // Shop Insurance, Vehicle Insurance, Health Insurance, Equipment Insurance
+  policyName      String
+  company         String
+  policyNumber    String
+  premiumAmount   Int // in paise
+  frequency       String    @default("YEARLY") // MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY
+  startDate       DateTime
+  expiryDate      DateTime
+  nextPaymentDate DateTime?
+  vehicleOrAsset  String?
+  documentUrl     String?
+  status          String    @default("ACTIVE") // ACTIVE, EXPIRING_SOON, EXPIRED
+  reminderDays    Int       @default(7)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("insurance_policies")
+}
+
+model RecurringPayment {
+  id            String    @id @default(uuid())
+  name          String
+  category      String
+  amount        Int // in paise
+  frequency     String // DAILY, WEEKLY, MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY, CUSTOM
+  startDate     DateTime
+  nextDueDate   DateTime
+  endDate       DateTime?
+  autoReminder  Boolean   @default(true)
+  reminderDays  Int       @default(3)
+  paymentMethod String    @default("CASH")
+  status        String    @default("ACTIVE")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("recurring_payments")
+}
+
+model Reminder {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  dueDate     DateTime
+  amount      Int? // in paise
+  type        String // CUSTOMER_DUE, DEALER_DUE, EMI_DUE, INSURANCE_EXPIRY, SALARY_DUE, RENT, ELECTRICITY, RECURRING
+  referenceId String?
+  remindDays  Int      @default(3)
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([dueDate])
+  @@map("reminders")
+}
+
+model DocumentReceipt {
+  id          String   @id @default(uuid())
+  title       String
+  category    String // CUSTOMER_RECEIPT, DEALER_RECEIPT, PURCHASE_INVOICE, SALES_INVOICE, INSURANCE, LOAN, EMI, SALARY, EXPENSE, OTHER
+  fileUrl     String
+  fileName    String
+  fileSize    Int
+  mimeType    String
+  referenceId String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+  @@map("document_receipts")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  userEmail  String?
+  action     String // LOGIN, LOGOUT, CREATE_TRANSACTION, VOID_TRANSACTION, PAYMENT_CREATED, CUSTOMER_CREATED, DEALER_CREATED, SALARY_PAID, LOAN_CREATED, EMI_PAID, SETTINGS_CHANGED
+  entityType String // TRANSACTION, PAYMENT, CUSTOMER, DEALER, STAFF, LOAN, EXPENSE, SETTINGS
+  entityId   String
+  amount     Int? // in paise
+  details    String? // JSON payload
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  transactionId String?
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("audit_logs")
+}
