@@ -3,7 +3,16 @@ import { authenticateToken, requireRoles } from '../middleware/auth.js';
 import { uploadMiddleware } from '../middleware/upload.js';
 
 // Controllers
-import { login, logout, logoutAllDevices, getMe, register, validateAccessCode } from '../controllers/authController.js';
+import {
+  login,
+  logout,
+  logoutAllDevices,
+  getMe,
+  register,
+  validateAccessCode,
+  getAllUsers,
+  deleteUser,
+} from '../controllers/authController.js';
 import { getDashboardMetrics } from '../controllers/dashboardController.js';
 import {
   getCustomers,
@@ -55,6 +64,10 @@ router.use(authenticateToken as any);
 // Settings
 router.get('/settings', getShopSettings as any);
 router.put('/settings', requireRoles('OWNER'), updateShopSettings as any);
+
+// Users Management (Owner Only)
+router.get('/users', requireRoles('OWNER'), getAllUsers as any);
+router.delete('/users/:userId', requireRoles('OWNER'), deleteUser as any);
 
 
 // Payment Accounts

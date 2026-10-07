@@ -15,9 +15,40 @@ const Settings: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Registered Users management
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
   useEffect(() => {
     fetchSettings();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setUsersLoading(true);
+      const res = await api.get('/users');
+      setUsers(res.data?.users || []);
+    } catch (err) {
+      console.error('Failed to load users', err);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!window.confirm(`Are you sure you want to delete user account "${userName}"? This cannot be undone.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/users/${userId}`);
+      setUsers(users.filter((u) => u.id !== userId));
+      alert(`User "${userName}" has been deleted.`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete user');
+    }
+  };
+
 
   const fetchSettings = async () => {
     try {
@@ -230,6 +261,76 @@ const Settings: React.FC = () => {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Registered Users & Team Management Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Registered Accounts & Team Access</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Review and delete registered staff, managers, or company accounts
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={fetchUsers}
+            className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold w-fit"
+          >
+            Refresh List
+          </button>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {usersLoading ? (
+            <p className="text-xs text-slate-400 py-4 text-center">Loading accounts...</p>
+          ) : users.length === 0 ? (
+            <p className="text-xs text-slate-400 py-4 text-center">No other accounts registered yet.</p>
+          ) : (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+                  <th className="py-2.5 px-3">Name</th>
+                  <th className="py-2.5 px-3">Username</th>
+                  <th className="py-2.5 px-3">Email</th>
+                  <th className="py-2.5 px-3">Role</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {users.map((u: any) => (
+                  <tr key={u.id} className="hover:bg-slate-50/50">
+                    <td className="py-2.5 px-3 font-semibold text-slate-800">{u.name}</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-600">{u.username}</td>
+                    <td className="py-2.5 px-3 text-slate-500">{u.email}</td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                          u.role === 'OWNER'
+                            ? 'bg-amber-100 text-amber-800'
+                            : u.role === 'MANAGER'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(u.id, u.name)}
+                        className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );

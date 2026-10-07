@@ -396,3 +396,54 @@ export const validateAccessCode = async (req: Request, res: Response) => {
   }
 };
 
+export const getAllUsers = async (req: AuthRequest, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ success: true, users });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user!.id;
+
+    if (userId === currentUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own active session. Ask another owner or delete via database.',
+      });
+    }
+
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Delete user sessions and user record
+    await prisma.session.deleteMany({ where: { userId } });
+    await prisma.user.delete({ where: { id: userId } });
+
+    broadcastEvent('user_deleted', { userId });
+    res.json({ success: true, message: `User "${targetUser.name}" (${targetUser.username}) deleted successfully.` });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to delete user' });
+  }
+};
+
+
