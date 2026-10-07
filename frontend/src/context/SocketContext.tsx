@@ -19,7 +19,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [lastEvent, setLastEvent] = useState<{ type: string; payload: any } | null>(null);
 
   useEffect(() => {
-    const socketInstance = io(window.location.origin.replace(':5173', ':5000'), {
+    const backendUrl =
+      import.meta.env.VITE_SOCKET_URL ||
+      (window.location.hostname === 'localhost'
+        ? 'http://localhost:5000'
+        : 'https://sve-filx.onrender.com');
+
+    const socketInstance = io(backendUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
     });
