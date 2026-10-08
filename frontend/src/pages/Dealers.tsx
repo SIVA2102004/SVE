@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 import { formatINR, formatDate } from '../utils/formatters';
 import { Dealer } from '../types';
+import { useSocket } from '../context/SocketContext';
 import {
   Building2,
   Search,
@@ -55,26 +56,34 @@ const Dealers: React.FC = () => {
   const [billDueDate, setBillDueDate] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const { lastEvent } = useSocket();
 
-  const fetchDealers = async () => {
+  const fetchDealers = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [dRes, aRes] = await Promise.all([api.get('/dealers'), api.get('/payment-accounts')]);
       const dealerList = Array.isArray(dRes.data) ? dRes.data : dRes.data?.dealers || [];
       const accList = Array.isArray(aRes.data) ? aRes.data : aRes.data?.accounts || [];
       setDealers(dealerList);
       setAccounts(accList);
-      if (accList.length > 0) setSelectedAcc(accList[0].id);
+      if (accList.length > 0) setSelectedAcc((prev) => prev || accList[0].id);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDealers();
   }, []);
+
+  // Instant real-time auto sync across all devices
+  useEffect(() => {
+    if (lastEvent) {
+      fetchDealers(true);
+    }
+  }, [lastEvent]);
 
   const handleCreateDealer = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 import { formatINR, formatDate } from '../utils/formatters';
 import { Customer } from '../types';
+import { useSocket } from '../context/SocketContext';
 import {
   Users,
   Search,
@@ -58,26 +59,34 @@ const Customers: React.FC = () => {
   const [billDueDate, setBillDueDate] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const { lastEvent } = useSocket();
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [cRes, aRes] = await Promise.all([api.get('/customers'), api.get('/payment-accounts')]);
       const custList = Array.isArray(cRes.data) ? cRes.data : cRes.data?.customers || [];
       const accList = Array.isArray(aRes.data) ? aRes.data : aRes.data?.accounts || [];
       setCustomers(custList);
       setAccounts(accList);
-      if (accList.length > 0) setSelectedAcc(accList[0].id);
+      if (accList.length > 0) setSelectedAcc((prev) => prev || accList[0].id);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  // Instant real-time auto sync across all devices
+  useEffect(() => {
+    if (lastEvent) {
+      fetchCustomers(true);
+    }
+  }, [lastEvent]);
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();

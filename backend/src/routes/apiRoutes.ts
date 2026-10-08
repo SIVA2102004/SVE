@@ -55,6 +55,7 @@ import { getCashFlowReport, getProfitLossReport } from '../controllers/reportCon
 const router = Router();
 
 // ================= AUTH & PUBLIC ROUTES =================
+router.get('/ping', (_req, res) => res.json({ success: true, pong: true, time: Date.now() }));
 router.post('/auth/login', login as any);
 router.post('/auth/register', register as any);
 router.post('/auth/validate-code', validateAccessCode as any);

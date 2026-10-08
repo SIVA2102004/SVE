@@ -11,6 +11,7 @@ import {
   X,
   PieChart as PieIcon,
 } from 'lucide-react';
+import { useSocket } from '../context/SocketContext';
 
 const Expenses: React.FC = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -25,10 +26,11 @@ const Expenses: React.FC = () => {
   const [description, setDescription] = useState('');
   const [selectedAcc, setSelectedAcc] = useState('');
   const [saving, setSaving] = useState(false);
+  const { lastEvent } = useSocket();
 
-  const fetchExpenses = async () => {
+  const fetchExpenses = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [txRes, accRes] = await Promise.all([
         api.get('/transactions'),
         api.get('/payment-accounts'),
@@ -44,17 +46,24 @@ const Expenses: React.FC = () => {
       setExpenses(expenseOnly);
       const accList = Array.isArray(accRes.data) ? accRes.data : accRes.data?.accounts || [];
       setAccounts(accList);
-      if (accList.length > 0) setSelectedAcc(accList[0].id);
+      if (accList.length > 0) setSelectedAcc((prev) => prev || accList[0].id);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchExpenses();
   }, []);
+
+  // Instant real-time auto sync across all devices
+  useEffect(() => {
+    if (lastEvent) {
+      fetchExpenses(true);
+    }
+  }, [lastEvent]);
 
   const handleRecordExpense = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -3,6 +3,7 @@ import api from '../api/client';
 import { formatINR, formatDate, formatTime } from '../utils/formatters';
 import { Transaction } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -24,10 +25,11 @@ const MoneyFlow: React.FC = () => {
   const [voidLoading, setVoidLoading] = useState(false);
   const [error, setError] = useState('');
   const { hasRole } = useAuth();
+  const { lastEvent } = useSocket();
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await api.get('/transactions');
       const list = Array.isArray(res.data) ? res.data : res.data?.transactions || [];
       const normalized = list.map((tx: any) => ({
@@ -43,13 +45,20 @@ const MoneyFlow: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to fetch ledger transactions');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchTransactions();
   }, []);
+
+  // Instant real-time auto sync across all devices
+  useEffect(() => {
+    if (lastEvent) {
+      fetchTransactions(true);
+    }
+  }, [lastEvent]);
 
   const handleVoidTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +142,7 @@ const MoneyFlow: React.FC = () => {
             <span>Download CSV</span>
           </button>
           <button
-            onClick={fetchTransactions}
+            onClick={() => fetchTransactions()}
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />

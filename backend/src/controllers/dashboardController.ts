@@ -10,32 +10,90 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     // 1. Current Available Balance across all payment accounts
-    const accounts = await prisma.paymentMethodAccount.findMany({
-      where: { isActive: true },
-    });
+    // Execute all independent database queries in parallel with Promise.all
+    const [
+      accounts,
+      pendingReceivables,
+      pendingPayables,
+      todayTransactions,
+      monthTransactions,
+      upcomingPayables,
+      upcomingReceivables,
+      recentTransactions,
+      activeLoans,
+      activeStaff,
+    ] = await Promise.all([
+      // 1. Current Available Balance across all payment accounts
+      prisma.paymentMethodAccount.findMany({ where: { isActive: true } }),
+      // 2. Total Customer Receivables
+      prisma.receivable.findMany({
+        where: { status: { in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] } },
+        select: { pendingAmount: true },
+      }),
+      // 3. Total Dealer Payables
+      prisma.payable.findMany({
+        where: { status: { in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] } },
+        select: { pendingAmount: true },
+      }),
+      // 4. Today's Transactions
+      prisma.transaction.findMany({
+        where: {
+          date: { gte: startOfToday, lte: endOfToday },
+          status: 'COMPLETED',
+        },
+        select: { type: true, amount: true },
+      }),
+      // 5. This Month Transactions
+      prisma.transaction.findMany({
+        where: {
+          date: { gte: startOfMonth, lte: endOfMonth },
+          status: 'COMPLETED',
+        },
+        select: { type: true, amount: true, category: true },
+      }),
+      // 6. Upcoming Payables (next 7 days)
+      prisma.payable.findMany({
+        where: {
+          dueDate: { gte: startOfToday, lte: next7Days },
+          status: { in: ['PENDING', 'PARTIALLY_PAID'] },
+        },
+        include: { dealer: true },
+        take: 5,
+        orderBy: { dueDate: 'asc' },
+      }),
+      // Upcoming Receivables (next 7 days)
+      prisma.receivable.findMany({
+        where: {
+          dueDate: { gte: startOfToday, lte: next7Days },
+          status: { in: ['PENDING', 'PARTIALLY_PAID'] },
+        },
+        include: { customer: true },
+        take: 5,
+        orderBy: { dueDate: 'asc' },
+      }),
+      // 7. Recent Transactions
+      prisma.transaction.findMany({
+        orderBy: { date: 'desc' },
+        take: 10,
+        include: { paymentMethodAccount: true },
+      }),
+      // 8. Active Loans & Staff
+      prisma.loan.findMany({
+        where: { status: 'ACTIVE' },
+        select: { emiAmount: true },
+      }),
+      prisma.staff.findMany({
+        where: { status: 'ACTIVE' },
+        select: { monthlySalary: true },
+      }),
+    ]);
+
     const currentBalancePaise = accounts.reduce((sum, acc) => sum + acc.currentBalance, 0);
-
-    // 2. Total Customer Receivables (Customers Owe You)
-    const pendingReceivables = await prisma.receivable.findMany({
-      where: { status: { in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] } },
-    });
     const totalReceivablePaise = pendingReceivables.reduce((sum, r) => sum + r.pendingAmount, 0);
-
-    // 3. Total Dealer Payables (You Owe Dealers)
-    const pendingPayables = await prisma.payable.findMany({
-      where: { status: { in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] } },
-    });
     const totalPayablePaise = pendingPayables.reduce((sum, p) => sum + p.pendingAmount, 0);
-
-    // 4. Today's Income & Expenses
-    const todayTransactions = await prisma.transaction.findMany({
-      where: {
-        date: { gte: startOfToday, lte: endOfToday },
-        status: 'COMPLETED',
-      },
-    });
 
     let todayIncomePaise = 0;
     let todayExpensePaise = 0;
@@ -53,72 +111,30 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // 5. This Month Income & Expenses
-    const monthTransactions = await prisma.transaction.findMany({
-      where: {
-        date: { gte: startOfMonth, lte: endOfMonth },
-        status: 'COMPLETED',
-      },
-    });
-
     let monthIncomePaise = 0;
     let monthExpensePaise = 0;
+    const categoryTotals: Record<string, number> = {};
     monthTransactions.forEach((tx) => {
       if (tx.type === 'INCOME' || tx.type === 'RECEIVABLE_PAYMENT') {
         monthIncomePaise += tx.amount;
-      } else if (
-        tx.type === 'EXPENSE' ||
-        tx.type === 'PAYABLE_PAYMENT' ||
-        tx.type === 'SALARY' ||
-        tx.type === 'EMI' ||
-        tx.type === 'INSURANCE'
-      ) {
-        monthExpensePaise += tx.amount;
+      } else {
+        if (
+          tx.type === 'EXPENSE' ||
+          tx.type === 'PAYABLE_PAYMENT' ||
+          tx.type === 'SALARY' ||
+          tx.type === 'EMI' ||
+          tx.type === 'INSURANCE'
+        ) {
+          monthExpensePaise += tx.amount;
+        }
+        if (tx.type !== 'TRANSFER') {
+          categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
+        }
       }
     });
 
     const netCashFlowPaise = monthIncomePaise - monthExpensePaise;
 
-    // 6. Upcoming Payments & Reminders (Next 7 days)
-    const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const upcomingPayables = await prisma.payable.findMany({
-      where: {
-        dueDate: { gte: startOfToday, lte: next7Days },
-        status: { in: ['PENDING', 'PARTIALLY_PAID'] },
-      },
-      include: { dealer: true },
-      take: 5,
-      orderBy: { dueDate: 'asc' },
-    });
-
-    const upcomingReceivables = await prisma.receivable.findMany({
-      where: {
-        dueDate: { gte: startOfToday, lte: next7Days },
-        status: { in: ['PENDING', 'PARTIALLY_PAID'] },
-      },
-      include: { customer: true },
-      take: 5,
-      orderBy: { dueDate: 'asc' },
-    });
-
-    // 7. Recent Money Flow transactions
-    const recentTransactions = await prisma.transaction.findMany({
-      orderBy: { date: 'desc' },
-      take: 10,
-      include: {
-        paymentMethodAccount: true,
-      },
-    });
-
-    // 8. Expense Category Breakdown for this month
-    const categoryTotals: Record<string, number> = {};
-    monthTransactions.forEach((tx) => {
-      if (tx.type !== 'INCOME' && tx.type !== 'RECEIVABLE_PAYMENT' && tx.type !== 'TRANSFER') {
-        categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
-      }
-    });
-
-    // Compute breakdown of accounts by type
     let cashPaise = 0;
     let bankPaise = 0;
     let upiPaise = 0;
@@ -128,8 +144,6 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
       else if (acc.type === 'UPI') upiPaise += acc.currentBalance;
     });
 
-    const activeLoans = await prisma.loan.findMany({ where: { status: 'ACTIVE' } });
-    const activeStaff = await prisma.staff.findMany({ where: { status: 'ACTIVE' } });
     const monthlyEmiPaise = activeLoans.reduce((sum, l) => sum + (l.emiAmount || 0), 0);
     const monthlySalaryPaise = activeStaff.reduce((sum, s) => sum + s.monthlySalary, 0);
 

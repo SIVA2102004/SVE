@@ -35,4 +35,15 @@ api.interceptors.response.use(
   }
 );
 
+// Keep backend warm in background so queries respond instantly
+if (typeof window !== 'undefined') {
+  const pingServer = () => {
+    fetch(`${import.meta.env.VITE_API_URL || defaultApiUrl}/ping`, { method: 'GET', keepalive: true }).catch(() => {});
+  };
+  // Ping immediately on load, then every 3 minutes
+  pingServer();
+  setInterval(pingServer, 3 * 60 * 1000);
+}
+
 export default api;
+
