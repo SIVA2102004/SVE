@@ -16,9 +16,14 @@ import {
   Printer,
   Edit2,
   Trash2,
+  QrCode,
+  Upload,
+  Calendar,
+  ExternalLink,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { QRCodeSVG } from 'qrcode.react';
 
 const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -34,12 +39,14 @@ const Customers: React.FC = () => {
   const [editPhone, setEditPhone] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editPendingRupees, setEditPendingRupees] = useState('');
+  const [editWeeklyReminderDay, setEditWeeklyReminderDay] = useState('');
 
   // New Customer Form
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+  const [weeklyReminderDay, setWeeklyReminderDay] = useState('');
   const [creditLimitRupees, setCreditLimitRupees] = useState('50000');
   const [initialDueAmount, setInitialDueAmount] = useState('');
   const [initialInvoiceNo, setInitialInvoiceNo] = useState('');
@@ -57,6 +64,12 @@ const Customers: React.FC = () => {
   const [billAmount, setBillAmount] = useState('');
   const [billDesc, setBillDesc] = useState('');
   const [billDueDate, setBillDueDate] = useState('');
+  const [billFile, setBillFile] = useState<File | null>(null);
+
+  // Dynamic QR Code Modal
+  const [qrModalCust, setQrModalCust] = useState<Customer | null>(null);
+  const [shopUpiId, setShopUpiId] = useState('');
+  const [shopName, setShopName] = useState('SVE Store');
 
   const [saving, setSaving] = useState(false);
   const { lastEvent } = useSocket();
@@ -64,12 +77,21 @@ const Customers: React.FC = () => {
   const fetchCustomers = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const [cRes, aRes] = await Promise.all([api.get('/customers'), api.get('/payment-accounts')]);
+      const [cRes, aRes, sRes] = await Promise.all([
+        api.get('/customers'),
+        api.get('/payment-accounts'),
+        api.get('/settings').catch(() => ({ data: { settings: {} } })),
+      ]);
       const custList = Array.isArray(cRes.data) ? cRes.data : cRes.data?.customers || [];
       const accList = Array.isArray(aRes.data) ? aRes.data : aRes.data?.accounts || [];
       setCustomers(custList);
       setAccounts(accList);
       if (accList.length > 0) setSelectedAcc((prev) => prev || accList[0].id);
+
+      if (sRes.data?.settings) {
+        setShopUpiId(sRes.data.settings.upiId || '');
+        setShopName(sRes.data.settings.shopName || 'SVE Store');
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -97,6 +119,7 @@ const Customers: React.FC = () => {
         phone,
         email,
         address,
+        weeklyReminderDay: weeklyReminderDay || undefined,
         creditLimitRupees: parseFloat(creditLimitRupees) || 0,
         initialReceivableAmountRupees: initialDueAmount ? parseFloat(initialDueAmount) : 0,
         initialReceivableInvoice: initialInvoiceNo || undefined,
@@ -107,6 +130,7 @@ const Customers: React.FC = () => {
       setPhone('');
       setEmail('');
       setAddress('');
+      setWeeklyReminderDay('');
       setInitialDueAmount('');
       setInitialInvoiceNo('');
       setInitialDueDate('');
@@ -123,6 +147,7 @@ const Customers: React.FC = () => {
     setEditName(cust.name);
     setEditPhone(cust.phone || '');
     setEditAddress(cust.address || '');
+    setEditWeeklyReminderDay(cust.weeklyReminderDay || '');
     setEditPendingRupees((cust.pendingBalance / 100).toString());
   };
 
@@ -136,6 +161,7 @@ const Customers: React.FC = () => {
         phone: editPhone,
         mobile: editPhone,
         address: editAddress,
+        weeklyReminderDay: editWeeklyReminderDay || null,
         pendingBalanceRupees: parseFloat(editPendingRupees) || 0,
       });
       setEditModalCust(null);
@@ -197,20 +223,25 @@ const Customers: React.FC = () => {
     setSaving(true);
 
     try {
-      await api.post(`/customers/${billModalCust.id}/receivables`, {
-        invoiceNo: billInvoiceNo,
-        description: billDesc,
-        totalAmountRupees: parseFloat(billAmount),
-        dueDate: billDueDate,
+      const formData = new FormData();
+      formData.append('invoiceNumber', billInvoiceNo || '');
+      formData.append('totalAmountRupees', billAmount);
+      formData.append('notes', billDesc || '');
+      if (billDueDate) formData.append('dueDate', billDueDate);
+      if (billFile) formData.append('file', billFile);
+
+      await api.post(`/customers/${billModalCust.id}/receivables`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setBillModalCust(null);
       setBillInvoiceNo('');
       setBillAmount('');
       setBillDesc('');
       setBillDueDate('');
+      setBillFile(null);
       await fetchCustomers();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to add customer bill');
+      alert(err.response?.data?.error || err.response?.data?.message || 'Failed to add customer bill');
     } finally {
       setSaving(false);
     }
@@ -245,8 +276,20 @@ const Customers: React.FC = () => {
   };
 
   const openWhatsAppShare = (cust: Customer) => {
-    const pending = (cust.pendingBalance / 100).toLocaleString('en-IN');
-    const msg = `Dear ${cust.name}, this is a gentle reminder from SVE that your outstanding balance is ₹${pending}. Please clear the due amount at your earliest convenience. Thank you!`;
+    const pendingRupees = (cust.pendingBalance / 100).toFixed(2).replace(/\.00$/, '');
+    let msg = `Dear ${cust.name},\nThis is a gentle payment reminder from ${shopName}.\n\nOutstanding Due Amount: ₹${Number(pendingRupees).toLocaleString('en-IN')}`;
+
+    if (cust.weeklyReminderDay) {
+      msg += `\nScheduled Weekly Payment Day: ${cust.weeklyReminderDay}`;
+    }
+
+    if (shopUpiId) {
+      const upiUrl = `upi://pay?pa=${encodeURIComponent(shopUpiId)}&pn=${encodeURIComponent(shopName)}&am=${pendingRupees}&cu=INR&tn=${encodeURIComponent(`Due payment for ${cust.name}`)}`;
+      msg += `\n\nPay Instantly via UPI:\n${upiUrl}\n\n(Click the link above on your phone or scan our shop QR code to pay instantly via Google Pay, PhonePe, or Paytm)`;
+    }
+
+    msg += `\n\nPlease clear the balance at your earliest convenience. Thank you!`;
+
     const cleanPhone = cust.phone.replace(/[^0-9]/g, '');
     const url = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
@@ -351,6 +394,13 @@ const Customers: React.FC = () => {
                   <p className="text-xs text-slate-400 mt-2 truncate">{cust.address}</p>
                 )}
 
+                {cust.weeklyReminderDay && (
+                  <div className="flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50/80 px-2.5 py-1 rounded-lg mt-2 w-fit">
+                    <Calendar className="w-3 h-3 mr-1" />
+                    <span>Weekly Reminder: {cust.weeklyReminderDay}</span>
+                  </div>
+                )}
+
                 <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400">Total Billed</span>
@@ -364,7 +414,7 @@ const Customers: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
                 <button
                   onClick={() => openEditModal(cust)}
                   className="py-2 px-2.5 bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center space-x-1"
@@ -375,25 +425,34 @@ const Customers: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setBillModalCust(cust)}
-                  className="flex-1 py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors"
+                  className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors"
                 >
                   + Add Bill
                 </button>
                 <button
                   onClick={() => setPaymentModalCust(cust)}
-                  className="flex-1 py-2 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center space-x-1"
+                  className="py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center space-x-1"
                 >
                   <ArrowDownRight className="w-3.5 h-3.5" />
                   <span>Receive</span>
                 </button>
                 {cust.pendingBalance > 0 && (
-                  <button
-                    onClick={() => openWhatsAppShare(cust)}
-                    title="Send WhatsApp payment reminder"
-                    className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition-colors"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setQrModalCust(cust)}
+                      title="Show Payment UPI QR Code"
+                      className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => openWhatsAppShare(cust)}
+                      title="Send WhatsApp payment reminder"
+                      className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition-colors"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => handleDeleteCustomer(cust.id, cust.name)}
@@ -456,6 +515,29 @@ const Customers: React.FC = () => {
                   onChange={(e) => setAddress(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Weekly Reminder Day (WhatsApp)
+                </label>
+                <select
+                  value={weeklyReminderDay}
+                  onChange={(e) => setWeeklyReminderDay(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">No automatic day</option>
+                  <option value="Monday">Monday</option>
+                  <option value="Tuesday">Tuesday</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Sunday">Sunday</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Selected day to send WhatsApp reminders only if due balance remains.
+                </p>
               </div>
 
               {/* Initial Opening Due / Receivable Section */}
@@ -649,6 +731,35 @@ const Customers: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Upload Bill Photo / PDF (Optional)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <label className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl cursor-pointer bg-slate-50 hover:bg-brand-50/30 transition-colors">
+                    <Upload className="w-4 h-4 text-slate-500" />
+                    <span className="text-xs font-medium text-slate-600 truncate">
+                      {billFile ? billFile.name : 'Choose Bill Photo or PDF...'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => setBillFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                  </label>
+                  {billFile && (
+                    <button
+                      type="button"
+                      onClick={() => setBillFile(null)}
+                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg text-xs"
+                      title="Clear file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
               <button
                 type="submit"
                 disabled={saving}
@@ -708,6 +819,25 @@ const Customers: React.FC = () => {
                 />
               </div>
               <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Weekly Reminder Day (WhatsApp)
+                </label>
+                <select
+                  value={editWeeklyReminderDay}
+                  onChange={(e) => setEditWeeklyReminderDay(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">No automatic day</option>
+                  <option value="Monday">Monday</option>
+                  <option value="Tuesday">Tuesday</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Sunday">Sunday</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-emerald-700 mb-1">
                   Correct Due / Pending Receivable (₹)
                 </label>
@@ -732,6 +862,69 @@ const Customers: React.FC = () => {
                 {saving ? 'Updating...' : 'Save & Update Customer'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DYNAMIC UPI QR CODE MODAL */}
+      {qrModalCust && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-center p-6 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-base text-slate-800">Scan to Pay via UPI</h3>
+              <button onClick={() => setQrModalCust(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-700">{qrModalCust.name}</p>
+              <p className="text-xs text-slate-400">Total Outstanding Due</p>
+              <p className="text-2xl font-black text-rose-600 mt-1">
+                {formatINR(qrModalCust.pendingBalance)}
+              </p>
+            </div>
+
+            <div className="flex justify-center p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+              {shopUpiId ? (
+                <QRCodeSVG
+                  value={`upi://pay?pa=${shopUpiId}&pn=${encodeURIComponent(shopName)}&am=${(
+                    qrModalCust.pendingBalance / 100
+                  ).toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Payment by ${qrModalCust.name}`)}`}
+                  size={190}
+                  level="H"
+                  includeMargin={true}
+                />
+              ) : (
+                <div className="py-8 px-4 text-xs text-amber-700 bg-amber-50 rounded-xl">
+                  Shop UPI ID not configured yet. Please configure it in <b>Settings</b>.
+                </div>
+              )}
+            </div>
+
+            {shopUpiId && (
+              <p className="text-[11px] font-mono font-medium text-slate-500">
+                UPI ID: {shopUpiId}
+              </p>
+            )}
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  openWhatsAppShare(qrModalCust);
+                  setQrModalCust(null);
+                }}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-sm"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>Send Payment Link on WhatsApp</span>
+              </button>
+              <button
+                onClick={() => setQrModalCust(null)}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

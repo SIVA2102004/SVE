@@ -167,7 +167,7 @@ export const getShopSettings = async (_req: AuthRequest, res: Response) => {
 
 export const updateShopSettings = async (req: AuthRequest, res: Response) => {
   try {
-    const { shopName, tagline, address, phone, email, gstNumber, accessCode } = req.body;
+    const { shopName, tagline, address, phone, email, gstNumber, upiId, accessCode } = req.body;
     let settings = await prisma.shopSettings.findFirst();
 
     const updateData: any = {};
@@ -177,6 +177,7 @@ export const updateShopSettings = async (req: AuthRequest, res: Response) => {
     if (phone !== undefined) updateData.phone = phone;
     if (email !== undefined) updateData.email = email;
     if (gstNumber !== undefined) updateData.gstNumber = gstNumber;
+    if (upiId !== undefined) updateData.upiId = upiId ? upiId.trim() : '';
     if (accessCode !== undefined) updateData.accessCode = accessCode.trim();
 
     if (!settings) {

@@ -86,7 +86,7 @@ router.get('/customers', getCustomers as any);
 router.post('/customers', createCustomer as any);
 router.put('/customers/:customerId', updateCustomer as any);
 router.delete('/customers/:customerId', requireRoles('OWNER'), deleteCustomer as any);
-router.post('/customers/:customerId/receivables', createCustomerReceivable as any);
+router.post('/customers/:customerId/receivables', uploadMiddleware.single('file'), createCustomerReceivable as any);
 router.post('/customers/:customerId/pay', recordCustomerPayment as any);
 router.post('/customers/:customerId/payment', recordCustomerPayment as any);
 

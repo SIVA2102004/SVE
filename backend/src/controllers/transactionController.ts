@@ -208,12 +208,15 @@ export const voidTransaction = async (req: AuthRequest, res: Response) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.transaction.findUnique({ where: { id } });
+      const existing = await tx.transaction.findUnique({
+        where: { id },
+        include: { payment: true },
+      });
       if (!existing || existing.status === 'VOID') {
         throw new Error('Transaction not found or already voided');
       }
 
-      // Reverse account balance effect
+      // 1. Reverse account balance effect
       if (existing.paymentMethodAccountId) {
         if (existing.type === 'INCOME' || existing.type === 'RECEIVABLE_PAYMENT') {
           await tx.paymentMethodAccount.update({
@@ -228,6 +231,61 @@ export const voidTransaction = async (req: AuthRequest, res: Response) => {
         }
       }
 
+      // 2. Reverse customer or dealer balance if attached to a Payment
+      if (existing.payment) {
+        if (existing.payment.customerId) {
+          const cust = await tx.customer.findUnique({ where: { id: existing.payment.customerId } });
+          if (cust) {
+            await tx.customer.update({
+              where: { id: cust.id },
+              data: {
+                totalPaid: Math.max(0, cust.totalPaid - existing.amount),
+                pendingBalance: cust.pendingBalance + existing.amount,
+              },
+            });
+          }
+          if (existing.payment.receivableId) {
+            const rec = await tx.receivable.findUnique({ where: { id: existing.payment.receivableId } });
+            if (rec) {
+              const newPaid = Math.max(0, rec.paidAmount - existing.amount);
+              await tx.receivable.update({
+                where: { id: rec.id },
+                data: {
+                  paidAmount: newPaid,
+                  pendingAmount: rec.pendingAmount + existing.amount,
+                  status: newPaid === 0 ? 'PENDING' : 'PARTIALLY_PAID',
+                },
+              });
+            }
+          }
+        } else if (existing.payment.dealerId) {
+          const dealer = await tx.dealer.findUnique({ where: { id: existing.payment.dealerId } });
+          if (dealer) {
+            await tx.dealer.update({
+              where: { id: dealer.id },
+              data: {
+                totalPaid: Math.max(0, dealer.totalPaid - existing.amount),
+                pendingBalance: dealer.pendingBalance + existing.amount,
+              },
+            });
+          }
+          if (existing.payment.payableId) {
+            const pay = await tx.payable.findUnique({ where: { id: existing.payment.payableId } });
+            if (pay) {
+              const newPaid = Math.max(0, pay.paidAmount - existing.amount);
+              await tx.payable.update({
+                where: { id: pay.id },
+                data: {
+                  paidAmount: newPaid,
+                  pendingAmount: pay.pendingAmount + existing.amount,
+                  status: newPaid === 0 ? 'PENDING' : 'PARTIALLY_PAID',
+                },
+              });
+            }
+          }
+        }
+      }
+
       const updated = await tx.transaction.update({
         where: { id },
         data: {
@@ -236,17 +294,21 @@ export const voidTransaction = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      await tx.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          userEmail: req.user!.email,
-          action: 'VOID_TRANSACTION',
-          entityType: 'TRANSACTION',
-          entityId: id,
-          amount: existing.amount,
-          details: JSON.stringify({ voidReason }),
-        },
-      });
+      try {
+        await tx.auditLog.create({
+          data: {
+            userId: req.user?.id || null,
+            userEmail: req.user?.email || null,
+            action: 'VOID_TRANSACTION',
+            entityType: 'TRANSACTION',
+            entityId: id,
+            amount: existing.amount,
+            details: JSON.stringify({ voidReason }),
+          },
+        });
+      } catch (logErr) {
+        console.warn('AuditLog create failed non-fatally:', logErr);
+      }
 
       return updated;
     });

@@ -14,6 +14,8 @@ import {
   X,
   Edit2,
   Trash2,
+  Calendar,
+  UserCheck,
 } from 'lucide-react';
 
 const Dealers: React.FC = () => {
@@ -27,12 +29,20 @@ const Dealers: React.FC = () => {
 
   // Edit Dealer Form
   const [editName, setEditName] = useState('');
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editCollectorName, setEditCollectorName] = useState('');
+  const [editCollectionDay, setEditCollectionDay] = useState('');
+  const [editCollectionDate, setEditCollectionDate] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editGstin, setEditGstin] = useState('');
   const [editPendingRupees, setEditPendingRupees] = useState('');
 
   // New Dealer Form
   const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [collectorName, setCollectorName] = useState('');
+  const [collectionDay, setCollectionDay] = useState('');
+  const [collectionDate, setCollectionDate] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -91,7 +101,11 @@ const Dealers: React.FC = () => {
     try {
       await api.post('/dealers', {
         name,
-        contactPerson,
+        companyName: companyName || name,
+        collectorName: collectorName || undefined,
+        collectionDay: collectionDay || undefined,
+        collectionDate: collectionDate || undefined,
+        contactPerson: contactPerson || collectorName || undefined,
         phone,
         email,
         gstin,
@@ -102,6 +116,10 @@ const Dealers: React.FC = () => {
       });
       setNewDealerModal(false);
       setName('');
+      setCompanyName('');
+      setCollectorName('');
+      setCollectionDay('');
+      setCollectionDate('');
       setContactPerson('');
       setPhone('');
       setEmail('');
@@ -121,6 +139,12 @@ const Dealers: React.FC = () => {
   const openEditModal = (dealer: Dealer) => {
     setEditModalDealer(dealer);
     setEditName(dealer.name);
+    setEditCompanyName(dealer.companyName || dealer.name);
+    setEditCollectorName(dealer.collectorName || dealer.contactPerson || '');
+    setEditCollectionDay(dealer.collectionDay || '');
+    setEditCollectionDate(
+      dealer.collectionDate ? new Date(dealer.collectionDate).toISOString().split('T')[0] : ''
+    );
     setEditPhone(dealer.phone || '');
     setEditGstin(dealer.gstin || '');
     setEditPendingRupees((dealer.pendingBalance / 100).toString());
@@ -133,7 +157,11 @@ const Dealers: React.FC = () => {
     try {
       await api.put(`/dealers/${editModalDealer.id}`, {
         name: editName,
-        companyName: editName,
+        companyName: editCompanyName || editName,
+        collectorName: editCollectorName || null,
+        collectionDay: editCollectionDay || null,
+        collectionDate: editCollectionDate || null,
+        contactPerson: editCollectorName || undefined,
         phone: editPhone,
         mobile: editPhone,
         gstin: editGstin,
@@ -273,6 +301,9 @@ const Dealers: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-slate-800 text-base">{dealer.name}</h3>
+                    {dealer.companyName && dealer.companyName !== dealer.name && (
+                      <p className="text-xs font-semibold text-brand-600">{dealer.companyName}</p>
+                    )}
                     <div className="flex items-center text-xs text-slate-500 mt-1">
                       <Phone className="w-3.5 h-3.5 mr-1 text-slate-400" />
                       <span>{dealer.phone}</span>
@@ -304,6 +335,27 @@ const Dealers: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Amount Collector & Weekly Visit Information */}
+                {(dealer.collectorName || dealer.collectionDay || dealer.collectionDate) && (
+                  <div className="mt-2.5 p-2 bg-amber-50/70 border border-amber-200/60 rounded-xl space-y-1 text-xs">
+                    {dealer.collectorName && (
+                      <div className="flex items-center text-amber-900 font-medium">
+                        <UserCheck className="w-3.5 h-3.5 mr-1.5 text-amber-700 flex-shrink-0" />
+                        <span>Collector: <b>{dealer.collectorName}</b></span>
+                      </div>
+                    )}
+                    {(dealer.collectionDay || dealer.collectionDate) && (
+                      <div className="flex items-center text-amber-800 text-[11px]">
+                        <Calendar className="w-3.5 h-3.5 mr-1.5 text-amber-700 flex-shrink-0" />
+                        <span>
+                          Visits: {dealer.collectionDay ? `Every ${dealer.collectionDay}` : ''}
+                          {dealer.collectionDate ? ` (Next: ${new Date(dealer.collectionDate).toLocaleDateString('en-IN')})` : ''}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {dealer.gstin && (
                   <p className="text-[11px] font-mono text-slate-400 mt-2">GSTIN: {dealer.gstin}</p>
@@ -397,6 +449,66 @@ const Dealers: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Company Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ABC Manufacturing"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Amount Collector Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Rajesh Kumar"
+                    value={collectorName}
+                    onChange={(e) => setCollectorName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Collection Visit Day
+                  </label>
+                  <select
+                    value={collectionDay}
+                    onChange={(e) => setCollectionDay(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="">Select Visit Day</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Next Visit Date
+                  </label>
+                  <input
+                    type="date"
+                    value={collectionDate}
+                    onChange={(e) => setCollectionDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
                     GSTIN (Optional)
                   </label>
                   <input
@@ -409,7 +521,7 @@ const Dealers: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Contact Person
+                    Contact Person (Optional)
                   </label>
                   <input
                     type="text"
@@ -646,6 +758,64 @@ const Dealers: React.FC = () => {
                   onChange={(e) => setEditName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Company Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editCompanyName}
+                    onChange={(e) => setEditCompanyName(e.target.value)}
+                    placeholder="e.g. ABC Manufacturing"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Amount Collector Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editCollectorName}
+                    onChange={(e) => setEditCollectorName(e.target.value)}
+                    placeholder="e.g. Rajesh Kumar"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Collection Visit Day
+                  </label>
+                  <select
+                    value={editCollectionDay}
+                    onChange={(e) => setEditCollectionDay(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="">Select Visit Day</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Next Visit Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editCollectionDate}
+                    onChange={(e) => setEditCollectionDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">

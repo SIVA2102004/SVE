@@ -51,7 +51,7 @@ export const getCustomers = async (req: AuthRequest, res: Response) => {
 
 export const createCustomer = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, mobile, phone, email, address, notes, initialReceivableInvoice, initialReceivableAmountRupees, dueDate } =
+    const { name, mobile, phone, email, address, notes, weeklyReminderDay, initialReceivableInvoice, initialReceivableAmountRupees, dueDate } =
       req.body;
     const resolvedMobile = mobile || phone;
 
@@ -69,6 +69,7 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
           email: email || null,
           address: address || null,
           notes: notes || null,
+          weeklyReminderDay: weeklyReminderDay || null,
           totalBilled: initialPaise,
           totalPaid: 0,
           pendingBalance: initialPaise,
@@ -116,6 +117,8 @@ export const createCustomerReceivable = async (req: AuthRequest, res: Response) 
   try {
     const { customerId } = req.params;
     const { invoiceNumber, totalAmountRupees, dueDate, notes } = req.body;
+    const file = req.file;
+    const receiptUrl = file ? `/uploads/${file.filename}` : req.body.receiptUrl || null;
 
     const amountPaise = rupeesToPaise(totalAmountRupees);
     if (amountPaise <= 0) {
@@ -138,8 +141,24 @@ export const createCustomerReceivable = async (req: AuthRequest, res: Response) 
           dueDate: dueDate ? new Date(dueDate) : null,
           status: 'PENDING',
           notes: notes || null,
+          receiptUrl,
         },
       });
+
+      if (file) {
+        await tx.documentReceipt.create({
+          data: {
+            title: `Bill ${invNo} - ${customer.name}`,
+            category: 'CUSTOMER_RECEIPT',
+            fileUrl: receiptUrl!,
+            fileName: file.originalname,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            referenceId: newRec.id,
+            notes: notes || null,
+          },
+        });
+      }
 
       await tx.customer.update({
         where: { id: customerId },
@@ -305,7 +324,7 @@ export const recordCustomerPayment = async (req: AuthRequest, res: Response) => 
 export const updateCustomer = async (req: AuthRequest, res: Response) => {
   try {
     const { customerId } = req.params;
-    const { name, mobile, phone, email, address, notes, pendingBalanceRupees } = req.body;
+    const { name, mobile, phone, email, address, notes, weeklyReminderDay, pendingBalanceRupees } = req.body;
 
     const existing = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!existing) {
@@ -319,6 +338,7 @@ export const updateCustomer = async (req: AuthRequest, res: Response) => {
       email: email !== undefined ? email : existing.email,
       address: address !== undefined ? address : existing.address,
       notes: notes !== undefined ? notes : existing.notes,
+      weeklyReminderDay: weeklyReminderDay !== undefined ? weeklyReminderDay : existing.weeklyReminderDay,
     };
 
     if (pendingBalanceRupees !== undefined && pendingBalanceRupees !== null) {

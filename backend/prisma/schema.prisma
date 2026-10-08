@@ -56,6 +56,7 @@ model ShopSettings {
   phone               String?  @default("+91 98765 43210")
   email               String?  @default("contact@sve.in")
   gstNumber           String?  @default("29ABCDE1234F1Z5")
+  upiId               String?  @default("")
   currency            String   @default("INR")
   currencySymbol      String   @default("₹")
   openingBalance      Int      @default(0) // in paise
@@ -89,18 +90,19 @@ model PaymentMethodAccount {
 }
 
 model Customer {
-  id             String   @id @default(uuid())
-  name           String
-  mobile         String
-  email          String?
-  address        String?
-  notes          String?
-  totalBilled    Int      @default(0) // in paise
-  totalPaid      Int      @default(0) // in paise
-  pendingBalance Int      @default(0) // in paise
-  status         String   @default("ACTIVE")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                String   @id @default(uuid())
+  name              String
+  mobile            String
+  email             String?
+  address           String?
+  notes             String?
+  weeklyReminderDay String? // e.g. "MONDAY", "TUESDAY", etc. or null
+  totalBilled       Int      @default(0) // in paise
+  totalPaid         Int      @default(0) // in paise
+  pendingBalance    Int      @default(0) // in paise
+  status            String   @default("ACTIVE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   receivables Receivable[]
   payments    Payment[]
@@ -110,21 +112,24 @@ model Customer {
 }
 
 model Dealer {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   companyName    String
+  collectorName  String? // Name of person who comes to collect payment
+  collectionDay  String? // e.g. "Monday", "Wednesday", etc.
+  collectionDate DateTime? // Specific date he visits
   mobile         String
   email          String?
   address        String?
   gstNumber      String?
   paymentTerms   String?
   notes          String?
-  totalBilled    Int      @default(0) // in paise
-  totalPaid      Int      @default(0) // in paise
-  pendingBalance Int      @default(0) // in paise
-  status         String   @default("ACTIVE")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  totalBilled    Int       @default(0) // in paise
+  totalPaid      Int       @default(0) // in paise
+  pendingBalance Int       @default(0) // in paise
+  status         String    @default("ACTIVE")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   payables Payable[]
   payments Payment[]

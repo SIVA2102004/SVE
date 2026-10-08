@@ -23,6 +23,7 @@ export interface Customer {
   phone: string;
   email?: string;
   address?: string;
+  weeklyReminderDay?: string | null;
   creditLimit: number;
   totalReceivable: number;
   totalReceived: number;
@@ -35,10 +36,13 @@ export interface Receivable {
   customerId: string;
   customer?: Customer;
   invoiceNo?: string;
+  invoiceNumber?: string;
   description: string;
   totalAmount: number;
   paidAmount: number;
   pendingBalance: number;
+  pendingAmount?: number;
+  receiptUrl?: string | null;
   dueDate?: string;
   status: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
   createdAt: string;
@@ -47,9 +51,14 @@ export interface Receivable {
 export interface Dealer {
   id: string;
   name: string;
+  companyName?: string;
+  collectorName?: string;
+  collectionDay?: string;
+  collectionDate?: string | null;
   contactPerson?: string;
   phone: string;
   email?: string;
+  address?: string;
   gstin?: string;
   bankDetails?: string;
   totalPayable: number;

@@ -52,6 +52,9 @@ export const createDealer = async (req: AuthRequest, res: Response) => {
       name,
       companyName,
       contactPerson,
+      collectorName,
+      collectionDay,
+      collectionDate,
       mobile,
       phone,
       email,
@@ -67,7 +70,8 @@ export const createDealer = async (req: AuthRequest, res: Response) => {
 
     const resolvedMobile = mobile || phone;
     const resolvedCompany = companyName || name;
-    const resolvedContact = contactPerson || name;
+    const resolvedContact = contactPerson || collectorName || name;
+    const resolvedCollector = collectorName || contactPerson || null;
     const resolvedGst = gstNumber || gstin;
 
     if (!name || !resolvedMobile) {
@@ -81,6 +85,9 @@ export const createDealer = async (req: AuthRequest, res: Response) => {
         data: {
           name,
           companyName: resolvedCompany,
+          collectorName: resolvedCollector,
+          collectionDay: collectionDay || null,
+          collectionDate: collectionDate ? new Date(collectionDate) : null,
           mobile: resolvedMobile,
           email: email || null,
           address: address || null,
@@ -324,7 +331,22 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
 export const updateDealer = async (req: AuthRequest, res: Response) => {
   try {
     const { dealerId } = req.params;
-    const { name, companyName, mobile, phone, email, address, gstNumber, gstin, notes, pendingBalanceRupees } = req.body;
+    const {
+      name,
+      companyName,
+      contactPerson,
+      collectorName,
+      collectionDay,
+      collectionDate,
+      mobile,
+      phone,
+      email,
+      address,
+      gstNumber,
+      gstin,
+      notes,
+      pendingBalanceRupees,
+    } = req.body;
 
     const existingDealer = await prisma.dealer.findUnique({ where: { id: dealerId } });
     if (!existingDealer) {
@@ -334,10 +356,14 @@ export const updateDealer = async (req: AuthRequest, res: Response) => {
     const resolvedMobile = mobile || phone || existingDealer.mobile;
     const resolvedCompany = companyName || name || existingDealer.companyName;
     const resolvedGst = gstNumber || gstin !== undefined ? (gstNumber || gstin) : existingDealer.gstNumber;
+    const resolvedCollector = collectorName !== undefined ? collectorName : (contactPerson !== undefined ? contactPerson : existingDealer.collectorName);
 
     const updateData: any = {
       name: name || existingDealer.name,
       companyName: resolvedCompany,
+      collectorName: resolvedCollector,
+      collectionDay: collectionDay !== undefined ? collectionDay : existingDealer.collectionDay,
+      collectionDate: collectionDate !== undefined ? (collectionDate ? new Date(collectionDate) : null) : existingDealer.collectionDate,
       mobile: resolvedMobile,
       email: email !== undefined ? email : existingDealer.email,
       address: address !== undefined ? address : existingDealer.address,
