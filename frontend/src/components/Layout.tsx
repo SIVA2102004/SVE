@@ -21,6 +21,7 @@ import {
   PlusCircle,
   Wifi,
   WifiOff,
+  RotateCw,
 } from 'lucide-react';
 import QuickAddModal from './QuickAddModal';
 
@@ -29,7 +30,26 @@ const Layout: React.FC = () => {
   const { isConnected } = useSocket();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const navigate = useNavigate();
+
+  const handleForceUpdate = async () => {
+    setIsUpdating(true);
+    try {
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      }
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((reg) => reg.update()));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    // Hard reload with cache clearing query parameter
+    window.location.href = window.location.pathname + '?v=' + Date.now();
+  };
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['OWNER', 'MANAGER', 'STAFF'] },
@@ -137,7 +157,17 @@ const Layout: React.FC = () => {
             <span className="font-bold text-base tracking-wider text-white">SVE</span>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleForceUpdate}
+              disabled={isUpdating}
+              className={`p-1.5 rounded-lg text-slate-300 hover:text-emerald-400 hover:bg-navy-900 transition-colors ${
+                isUpdating ? 'animate-spin text-emerald-400' : ''
+              }`}
+              title="Sync & Update to Latest Version"
+            >
+              <RotateCw className="w-5 h-5" />
+            </button>
             <button
               onClick={() => setQuickAddOpen(true)}
               className="p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
@@ -183,12 +213,21 @@ const Layout: React.FC = () => {
                 <p className="text-sm font-medium text-white">{user?.fullName}</p>
                 <p className="text-xs text-slate-400">{user?.role}</p>
               </div>
-              <button
-                onClick={logout}
-                className="px-3 py-1.5 text-xs text-rose-400 bg-rose-950/30 border border-rose-800/40 rounded-md font-semibold"
-              >
-                Log Out
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleForceUpdate}
+                  className="px-2.5 py-1.5 text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 rounded-md font-semibold flex items-center space-x-1"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`} />
+                  <span>Update App</span>
+                </button>
+                <button
+                  onClick={logout}
+                  className="px-3 py-1.5 text-xs text-rose-400 bg-rose-950/30 border border-rose-800/40 rounded-md font-semibold"
+                >
+                  Log Out
+                </button>
+              </div>
             </div>
           </div>
         )}
