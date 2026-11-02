@@ -214,12 +214,18 @@ const Reports: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
             <h3 className="font-bold text-slate-800 text-base mb-4">Overhead Expense Breakdown by Category</h3>
             <div className="space-y-2">
-              {Object.entries(pnlData.breakdown).map(([cat, amt]: [string, any]) => (
-                <div key={cat} className="flex justify-between p-3 bg-slate-50 rounded-xl text-xs font-semibold">
-                  <span className="text-slate-700">{cat}</span>
-                  <span className="text-rose-600 font-bold">{formatINR(amt)}</span>
+              {pnlData.breakdown && typeof pnlData.breakdown === 'object' && Object.keys(pnlData.breakdown).length > 0 ? (
+                Object.entries(pnlData.breakdown).map(([cat, amt]: [string, any]) => (
+                  <div key={cat} className="flex justify-between p-3 bg-slate-50 rounded-xl text-xs font-semibold">
+                    <span className="text-slate-700">{cat}</span>
+                    <span className="text-rose-600 font-bold">{formatINR(amt)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-slate-400 text-xs font-medium">
+                  No categorized overhead expenses recorded in this period.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
-// SVE Auto-Update Service Worker v4
+// SVE Auto-Update Service Worker v5
 // Always prioritizes network to guarantee mobile devices instantly see the latest updates
-const CACHE_NAME = 'sve-cache-v4';
+const CACHE_NAME = 'sve-cache-v5';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
