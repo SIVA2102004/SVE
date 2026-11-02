@@ -241,3 +241,125 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const payAdvanceSalary = async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      staffId,
+      amountRupees,
+      date,
+      paymentMethod = 'CASH',
+      paymentMethodAccountId,
+      notes,
+    } = req.body;
+
+    if (!staffId || !amountRupees || parseFloat(amountRupees) <= 0) {
+      return res.status(400).json({ success: false, message: 'Staff ID and valid advance amount are required.' });
+    }
+
+    const staff = await prisma.staff.findUnique({
+      where: { id: staffId },
+    });
+
+    if (!staff) {
+      return res.status(404).json({ success: false, message: 'Staff member not found.' });
+    }
+
+    const advanceDate = date ? new Date(date) : new Date();
+    const amountPaise = rupeesToPaise(parseFloat(amountRupees));
+    const m = advanceDate.getMonth() + 1;
+    const y = advanceDate.getFullYear();
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Upsert salary record for that month to accumulate the advance
+      const salaryRecord = await tx.salaryRecord.upsert({
+        where: {
+          staffId_month_year: { staffId, month: m, year: y },
+        },
+        update: {
+          advance: { increment: amountPaise },
+        },
+        create: {
+          staffId,
+          month: m,
+          year: y,
+          baseSalary: staff.monthlySalary,
+          attendanceAdjustment: 0,
+          advance: amountPaise,
+          bonus: 0,
+          deduction: 0,
+          finalSalary: Math.max(0, staff.monthlySalary - amountPaise),
+          paidAmount: 0,
+          pendingAmount: Math.max(0, staff.monthlySalary - amountPaise),
+          status: 'PARTIAL',
+          paymentMethod,
+        },
+      });
+
+      // Create an EXPENSE transaction
+      const transaction = await tx.transaction.create({
+        data: {
+          type: 'EXPENSE',
+          category: 'Staff Advance',
+          amount: amountPaise,
+          date: advanceDate,
+          paymentMethod,
+          paymentMethodAccountId: paymentMethodAccountId || null,
+          source: 'Shop Account',
+          destination: staff.name,
+          description: notes || `Salary advance of Rs.${parseFloat(amountRupees)} paid to ${staff.name}`,
+          createdById: req.user!.id,
+        },
+      });
+
+      // Create Expense record
+      await tx.expense.create({
+        data: {
+          name: `Salary Advance: ${staff.name}`,
+          category: 'Staff Salary',
+          amount: amountPaise,
+          date: advanceDate,
+          paymentMethod,
+          paidTo: staff.name,
+          description: notes || `Advance payment for ${m}/${y}`,
+        },
+      });
+
+      // Deduct from account balance if account is specified
+      if (paymentMethodAccountId) {
+        await tx.paymentMethodAccount.update({
+          where: { id: paymentMethodAccountId },
+          data: { currentBalance: { decrement: amountPaise } },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          userEmail: req.user!.email,
+          action: 'STAFF_ADVANCE_PAID',
+          entityType: 'STAFF',
+          entityId: staff.id,
+          amount: amountPaise,
+          details: JSON.stringify({
+            staff: staff.name,
+            amountRupees,
+            date: advanceDate,
+            paymentMethod,
+          }),
+        },
+      });
+
+      return { salaryRecord, transaction };
+    });
+
+    broadcastEvent('salary_advance_paid', { staffId, result });
+    res.json({
+      success: true,
+      message: `Salary advance of Rs.${parseFloat(amountRupees)} recorded successfully for ${staff.name}`,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};

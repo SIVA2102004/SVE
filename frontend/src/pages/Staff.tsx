@@ -14,6 +14,8 @@ import {
   Clock,
   History,
   Users,
+  CreditCard,
+  Banknote,
 } from 'lucide-react';
 
 const StaffPage: React.FC = () => {
@@ -23,12 +25,20 @@ const StaffPage: React.FC = () => {
   const [attendanceModal, setAttendanceModal] = useState<Staff | null>(null);
   const [historyModal, setHistoryModal] = useState<Staff | null>(null);
   const [salaryModal, setSalaryModal] = useState<Staff | null>(null);
+  const [advanceModal, setAdvanceModal] = useState<Staff | null>(null);
 
   // New Staff form
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [designation, setDesignation] = useState('');
   const [monthlySalaryRupees, setMonthlySalaryRupees] = useState('');
+
+  // Advance Form
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advanceDate, setAdvanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [advancePayMode, setAdvancePayMode] = useState('CASH');
+  const [advanceAcc, setAdvanceAcc] = useState('');
+  const [advanceNotes, setAdvanceNotes] = useState('');
 
   // Attendance Form
   const [attDate, setAttDate] = useState(new Date().toISOString().split('T')[0]);
@@ -148,6 +158,31 @@ const StaffPage: React.FC = () => {
     }
   };
 
+  const handlePayAdvance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!advanceModal) return;
+    setSaving(true);
+    try {
+      await api.post(`/staff/${advanceModal.id}/advance`, {
+        staffId: advanceModal.id,
+        amountRupees: parseFloat(advanceAmount),
+        date: advanceDate,
+        paymentMethod: advancePayMode,
+        paymentMethodAccountId: advanceAcc || undefined,
+        notes: advanceNotes || undefined,
+      });
+      alert(`Advance payment of ₹${advanceAmount} to ${advanceModal.name} recorded successfully!`);
+      setAdvanceModal(null);
+      setAdvanceAmount('');
+      setAdvanceNotes('');
+      await fetchStaff();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to record advance salary');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Banner */}
@@ -247,20 +282,33 @@ const StaffPage: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2">
+              <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setAttendanceModal(st)}
-                  className="py-2 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center space-x-1"
+                  className="py-2 px-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1"
                 >
                   <Calendar className="w-3.5 h-3.5" />
                   <span>Attendance</span>
                 </button>
                 <button
+                  onClick={() => {
+                    setAdvanceModal(st);
+                    setAdvanceAmount('');
+                    setAdvanceDate(new Date().toISOString().split('T')[0]);
+                    setAdvancePayMode('CASH');
+                    if (accounts.length > 0) setAdvanceAcc(accounts[0].id);
+                  }}
+                  className="py-2 px-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 border border-amber-200/60"
+                >
+                  <Banknote className="w-3.5 h-3.5" />
+                  <span>Advance</span>
+                </button>
+                <button
                   onClick={() => openSalaryModal(st)}
-                  className="py-2 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center space-x-1"
+                  className="py-2 px-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-sm"
                 >
                   <DollarSign className="w-3.5 h-3.5" />
-                  <span>Pay Salary</span>
+                  <span>Salary</span>
                 </button>
               </div>
             </div>
@@ -475,6 +523,109 @@ const StaffPage: React.FC = () => {
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
               >
                 {saving ? 'Processing...' : 'Disburse Salary Payment'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PAY ADVANCE SALARY MODAL */}
+      {advanceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-amber-50">
+              <div>
+                <h3 className="font-bold text-base text-amber-950">Give Salary Advance</h3>
+                <p className="text-xs text-amber-800">{advanceModal.name} ({advanceModal.designation})</p>
+              </div>
+              <button onClick={() => setAdvanceModal(null)}>
+                <X className="w-5 h-5 text-amber-900" />
+              </button>
+            </div>
+            <form onSubmit={handlePayAdvance} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Advance Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  placeholder="e.g. 2000"
+                  value={advanceAmount}
+                  onChange={(e) => setAdvanceAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Advance Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={advanceDate}
+                    onChange={(e) => setAdvanceDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Payment Mode *
+                  </label>
+                  <select
+                    value={advancePayMode}
+                    onChange={(e) => setAdvancePayMode(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="UPI">UPI / GPay / PhonePe</option>
+                    <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </div>
+              </div>
+
+              {advancePayMode !== 'CASH' && accounts.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Disburse From Account
+                  </label>
+                  <select
+                    value={advanceAcc}
+                    onChange={(e) => setAdvanceAcc(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  >
+                    {accounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} (Balance: {formatINR(acc.balance)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Reason / Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Festival advance / emergency loan"
+                  value={advanceNotes}
+                  onChange={(e) => setAdvanceNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving || !advanceAmount}
+                className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 shadow-md transition-all mt-2"
+              >
+                {saving ? 'Recording...' : 'Disburse Advance'}
               </button>
             </form>
           </div>
