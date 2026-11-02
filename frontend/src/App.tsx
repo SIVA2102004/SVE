@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { ScopeProvider } from './context/ScopeContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -16,6 +17,9 @@ import Reminders from './pages/Reminders';
 import Reports from './pages/Reports';
 import AuditLogs from './pages/AuditLogs';
 import Settings from './pages/Settings';
+import Insurance from './pages/Insurance';
+import Chits from './pages/Chits';
+import PersonalIncome from './pages/PersonalIncome';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> = ({
   children,
@@ -47,7 +51,8 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <SocketProvider>
-          <Routes>
+          <ScopeProvider>
+            <Routes>
             <Route path="/login" element={<Login />} />
 
             <Route
@@ -76,6 +81,30 @@ function App() {
                 element={
                   <ProtectedRoute roles={['OWNER', 'MANAGER']}>
                     <Loans />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="insurance"
+                element={
+                  <ProtectedRoute roles={['OWNER', 'MANAGER']}>
+                    <Insurance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="chits"
+                element={
+                  <ProtectedRoute roles={['OWNER', 'MANAGER']}>
+                    <Chits />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="personal-income"
+                element={
+                  <ProtectedRoute roles={['OWNER', 'MANAGER']}>
+                    <PersonalIncome />
                   </ProtectedRoute>
                 }
               />
@@ -109,9 +138,10 @@ function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </SocketProvider>
-      </AuthProvider>
-    </BrowserRouter>
+        </ScopeProvider>
+      </SocketProvider>
+    </AuthProvider>
+  </BrowserRouter>
   );
 }
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { useScope, FinancialScope } from '../context/ScopeContext';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -22,12 +23,16 @@ import {
   Wifi,
   WifiOff,
   RotateCw,
+  Shield,
+  Coins,
+  Wallet,
 } from 'lucide-react';
 import QuickAddModal from './QuickAddModal';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
   const { isConnected } = useSocket();
+  const { scope, setScope, scopeLabel } = useScope();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -58,7 +63,10 @@ const Layout: React.FC = () => {
     { name: 'Dealers (Pay)', path: '/dealers', icon: Building2, roles: ['OWNER', 'MANAGER', 'STAFF'] },
     { name: 'Expenses', path: '/expenses', icon: TrendingDown, roles: ['OWNER', 'MANAGER', 'STAFF'] },
     { name: 'Staff & Salaries', path: '/staff', icon: UserCheck, roles: ['OWNER', 'MANAGER'] },
+    { name: 'Insurance (14)', path: '/insurance', icon: Shield, roles: ['OWNER', 'MANAGER'] },
     { name: 'Loans & EMIs', path: '/loans', icon: CreditCard, roles: ['OWNER', 'MANAGER'] },
+    { name: 'Chit Funds', path: '/chits', icon: Coins, roles: ['OWNER', 'MANAGER'] },
+    { name: 'Personal Income', path: '/personal-income', icon: Wallet, roles: ['OWNER', 'MANAGER'] },
     { name: 'Receipts Vault', path: '/receipts', icon: FileText, roles: ['OWNER', 'MANAGER', 'STAFF'] },
     { name: 'Reminders', path: '/reminders', icon: Bell, roles: ['OWNER', 'MANAGER', 'STAFF'] },
     { name: 'Reports & P&L', path: '/reports', icon: BarChart3, roles: ['OWNER', 'MANAGER'] },
@@ -78,8 +86,8 @@ const Layout: React.FC = () => {
               ₹
             </div>
             <div>
-              <h1 className="font-bold text-lg text-white tracking-wider">SVE</h1>
-              <p className="text-xs text-slate-400 font-medium">Business Finance</p>
+              <h1 className="font-bold text-lg text-white tracking-wider">SVE 2.0</h1>
+              <p className="text-[11px] text-emerald-400 font-medium">{scopeLabel}</p>
             </div>
           </div>
           <div title={isConnected ? 'Real-Time Connected' : 'Connecting to Server...'}>
@@ -91,6 +99,28 @@ const Layout: React.FC = () => {
             ) : (
               <span className="h-2.5 w-2.5 rounded-full bg-amber-500 inline-block"></span>
             )}
+          </div>
+        </div>
+
+        {/* Desktop Scope Switcher */}
+        <div className="p-3 border-b border-navy-900 bg-navy-900/40">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">
+            Financial Scope
+          </p>
+          <div className="grid grid-cols-2 gap-1.5 bg-navy-950 p-1.5 rounded-xl border border-navy-800 text-xs font-semibold">
+            {(['OVERALL', 'PERSONAL', 'FAMILY', 'BUSINESS'] as FinancialScope[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => setScope(s)}
+                className={`py-1.5 px-2 rounded-lg text-center transition-all ${
+                  scope === s
+                    ? 'bg-brand-600 text-white shadow-sm font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-navy-900'
+                }`}
+              >
+                {s === 'OVERALL' ? 'Overall' : s === 'PERSONAL' ? 'Personal' : s === 'FAMILY' ? 'Family' : 'Business'}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -149,38 +179,60 @@ const Layout: React.FC = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile Header */}
-        <header className="lg:hidden bg-navy-950 text-white border-b border-navy-900 px-4 py-3 flex items-center justify-between shadow-md">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center font-bold text-white text-base">
-              ₹
+        <header className="lg:hidden bg-navy-950 text-white border-b border-navy-900 px-4 py-3 flex flex-col gap-2 shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center font-bold text-white text-base">
+                ₹
+              </div>
+              <div>
+                <span className="font-bold text-base tracking-wider text-white">SVE 2.0</span>
+                <span className="block text-[10px] text-emerald-400 font-medium">{scopeLabel}</span>
+              </div>
             </div>
-            <span className="font-bold text-base tracking-wider text-white">SVE</span>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleForceUpdate}
+                disabled={isUpdating}
+                className={`p-1.5 rounded-lg text-slate-300 hover:text-emerald-400 hover:bg-navy-900 transition-colors ${
+                  isUpdating ? 'animate-spin text-emerald-400' : ''
+                }`}
+                title="Sync & Update to Latest Version"
+              >
+                <RotateCw className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setQuickAddOpen(true)}
+                className="p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
+                title="Quick Add"
+              >
+                <PlusCircle className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-navy-900"
+              >
+                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleForceUpdate}
-              disabled={isUpdating}
-              className={`p-1.5 rounded-lg text-slate-300 hover:text-emerald-400 hover:bg-navy-900 transition-colors ${
-                isUpdating ? 'animate-spin text-emerald-400' : ''
-              }`}
-              title="Sync & Update to Latest Version"
-            >
-              <RotateCw className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setQuickAddOpen(true)}
-              className="p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
-              title="Quick Add"
-            >
-              <PlusCircle className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-navy-900"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+          {/* Mobile Scope Switcher Pills */}
+          <div className="grid grid-cols-4 gap-1 p-1 bg-navy-900 rounded-xl border border-navy-800 text-[11px] font-bold">
+            {(['OVERALL', 'PERSONAL', 'FAMILY', 'BUSINESS'] as FinancialScope[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => setScope(s)}
+                className={`py-1.5 px-1 rounded-lg text-center transition-all ${
+                  scope === s
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {s === 'OVERALL' ? 'All' : s === 'PERSONAL' ? 'Personal' : s === 'FAMILY' ? 'Family' : 'Business'}
+              </button>
+            ))}
           </div>
         </header>
 

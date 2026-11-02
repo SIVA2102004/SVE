@@ -42,6 +42,11 @@ import {
   getPaymentAccounts,
   getInsurancePolicies,
   createInsurancePolicy,
+  getChitSchemes,
+  createChitScheme,
+  payChitInstallment,
+  getPersonalIncomes,
+  createPersonalIncome,
   getReminders,
   createReminder,
   uploadReceipt,
@@ -127,7 +132,14 @@ router.get('/reminders', getReminders as any);
 router.post('/reminders', createReminder as any);
 router.patch('/reminders/:id/complete', createReminder as any);
 
-// 8. Receipts & Documents
+// 8. Chit Funds & Personal Income
+router.get('/chits', getChitSchemes as any);
+router.post('/chits', requireRoles('OWNER', 'MANAGER'), createChitScheme as any);
+router.post('/chits/:chitId/pay', payChitInstallment as any);
+router.get('/personal-income', getPersonalIncomes as any);
+router.post('/personal-income', createPersonalIncome as any);
+
+// 9. Receipts & Documents
 router.post('/documents/upload', uploadMiddleware.single('file'), uploadReceipt as any);
 router.get('/documents', getReceipts as any);
 router.post('/receipts/upload', uploadMiddleware.single('file'), uploadReceipt as any);

@@ -31,31 +31,42 @@ export const getInsurancePolicies = async (req: AuthRequest, res: Response) => {
 export const createInsurancePolicy = async (req: AuthRequest, res: Response) => {
   try {
     const {
+      scope = 'BUSINESS',
       insuranceType = 'Shop Insurance',
       policyName,
       company,
       policyNumber,
+      policyHolder,
+      nominee,
+      sumAssuredRupees,
       premiumAmountRupees,
       frequency = 'YEARLY',
       startDate,
       expiryDate,
       vehicleOrAsset,
+      notes,
     } = req.body;
 
     const premiumPaise = rupeesToPaise(premiumAmountRupees);
+    const sumAssuredPaise = sumAssuredRupees ? rupeesToPaise(sumAssuredRupees) : 0;
 
     const policy = await prisma.insurancePolicy.create({
       data: {
+        scope,
         insuranceType,
         policyName,
         company,
         policyNumber,
+        policyHolder: policyHolder || null,
+        nominee: nominee || null,
+        sumAssured: sumAssuredPaise,
         premiumAmount: premiumPaise,
         frequency,
         startDate: startDate ? new Date(startDate) : new Date(),
         expiryDate: new Date(expiryDate),
         nextPaymentDate: new Date(expiryDate),
         vehicleOrAsset: vehicleOrAsset || null,
+        notes: notes || null,
         status: 'ACTIVE',
       },
     });
@@ -211,6 +222,216 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
     res.json({ success: true, logs });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ================= CHIT FUNDS CONTROLLER =================
+export const getChitSchemes = async (req: AuthRequest, res: Response) => {
+  try {
+    const { scope } = req.query;
+    const where: any = {};
+    if (scope && scope !== 'OVERALL') where.scope = String(scope);
+
+    const chits = await prisma.chitScheme.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        installments: { orderBy: { monthNumber: 'desc' }, take: 12 },
+      },
+    });
+    res.json({ success: true, chits });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createChitScheme = async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      scope = 'PERSONAL',
+      chitName,
+      chitCompany,
+      chitNumber,
+      totalValueRupees,
+      monthlyContributionRupees,
+      totalMonths,
+      startDate,
+      dueDayOfMonth = 10,
+      notes,
+    } = req.body;
+
+    const totalValuePaise = rupeesToPaise(totalValueRupees);
+    const monthlyContributionPaise = rupeesToPaise(monthlyContributionRupees);
+
+    const chit = await prisma.chitScheme.create({
+      data: {
+        scope,
+        chitName,
+        chitCompany,
+        chitNumber: chitNumber || null,
+        totalValue: totalValuePaise,
+        monthlyContribution: monthlyContributionPaise,
+        totalMonths: parseInt(totalMonths) || 50,
+        startDate: startDate ? new Date(startDate) : new Date(),
+        dueDayOfMonth: parseInt(dueDayOfMonth) || 10,
+        notes: notes || null,
+        status: 'ACTIVE',
+      },
+    });
+
+    broadcastEvent('chit_created', chit);
+    res.status(201).json({ success: true, chit });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const payChitInstallment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { chitId } = req.params;
+    const { amountRupees, dividendRupees = 0, paymentAccountId } = req.body;
+
+    const amountPaise = rupeesToPaise(amountRupees);
+    const dividendPaise = rupeesToPaise(dividendRupees);
+
+    const chit = await prisma.chitScheme.findUnique({ where: { id: chitId } });
+    if (!chit) return res.status(404).json({ success: false, message: 'Chit scheme not found' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const installment = await tx.chitInstallment.create({
+        data: {
+          chitSchemeId: chit.id,
+          monthNumber: chit.currentMonth,
+          dueDate: new Date(),
+          amountExpected: chit.monthlyContribution,
+          amountPaid: amountPaise,
+          dividendEarned: dividendPaise,
+          status: 'PAID',
+          paidDate: new Date(),
+          paymentMethod: 'BANK',
+        },
+      });
+
+      await tx.chitScheme.update({
+        where: { id: chit.id },
+        data: { currentMonth: { increment: 1 } },
+      });
+
+      if (paymentAccountId) {
+        await tx.paymentMethodAccount.update({
+          where: { id: paymentAccountId },
+          data: { currentBalance: { decrement: amountPaise } },
+        });
+      }
+
+      await tx.transaction.create({
+        data: {
+          scope: chit.scope,
+          type: 'CHIT_CONTRIBUTION',
+          category: 'Chit Contribution',
+          amount: amountPaise,
+          paymentMethod: 'BANK',
+          paymentMethodAccountId: paymentAccountId || null,
+          source: 'Account',
+          destination: chit.chitCompany,
+          description: `Chit Installment #${chit.currentMonth} for ${chit.chitName}`,
+          chitInstallmentId: installment.id,
+          createdById: req.user!.id,
+        },
+      });
+
+      return installment;
+    });
+
+    broadcastEvent('chit_paid', result);
+    res.json({ success: true, installment: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ================= PERSONAL INCOME CONTROLLER =================
+export const getPersonalIncomes = async (req: AuthRequest, res: Response) => {
+  try {
+    const { scope } = req.query;
+    const where: any = {};
+    if (scope && scope !== 'OVERALL') where.scope = String(scope);
+
+    const incomes = await prisma.personalIncome.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      include: {
+        paymentMethodAccount: { select: { id: true, name: true } },
+      },
+    });
+    res.json({ success: true, incomes });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createPersonalIncome = async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      scope = 'PERSONAL',
+      source,
+      amountRupees,
+      date,
+      paymentMethod = 'BANK',
+      paymentMethodAccountId,
+      description,
+    } = req.body;
+
+    const amountPaise = rupeesToPaise(amountRupees);
+    if (amountPaise <= 0) {
+      return res.status(400).json({ success: false, message: 'Income amount must be greater than zero.' });
+    }
+
+    const income = await prisma.$transaction(async (tx) => {
+      const newIncome = await tx.personalIncome.create({
+        data: {
+          scope,
+          source,
+          amount: amountPaise,
+          date: date ? new Date(date) : new Date(),
+          paymentMethod,
+          paymentMethodAccountId: paymentMethodAccountId || null,
+          description: description || null,
+          createdById: req.user!.id,
+        },
+      });
+
+      if (paymentMethodAccountId) {
+        await tx.paymentMethodAccount.update({
+          where: { id: paymentMethodAccountId },
+          data: { currentBalance: { increment: amountPaise } },
+        });
+      }
+
+      await tx.transaction.create({
+        data: {
+          scope,
+          type: 'INCOME',
+          category: `Personal: ${source}`,
+          amount: amountPaise,
+          date: date ? new Date(date) : new Date(),
+          paymentMethod,
+          paymentMethodAccountId: paymentMethodAccountId || null,
+          source,
+          destination: 'Personal Account',
+          description: description || `Personal income from ${source}`,
+          personalIncomeId: newIncome.id,
+          createdById: req.user!.id,
+        },
+      });
+
+      return newIncome;
+    });
+
+    broadcastEvent('personal_income_created', income);
+    res.status(201).json({ success: true, income });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
