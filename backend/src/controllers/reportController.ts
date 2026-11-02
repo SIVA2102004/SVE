@@ -52,14 +52,34 @@ export const getCashFlowReport = async (req: AuthRequest, res: Response) => {
       };
     });
 
+    const totalInflow = monthlySummary.reduce((s, m) => s + m.income, 0);
+    const totalOutflow = monthlySummary.reduce((s, m) => s + m.expense, 0);
+    const netCashFlow = totalInflow - totalOutflow;
+    const closingBalance = runningBalance;
+
+    const summary = {
+      openingBalance,
+      totalInflow,
+      totalOutflow,
+      netCashFlow,
+      closingBalance,
+    };
+
+    const period = {
+      start: `01-01-${y}`,
+      end: `31-12-${y}`,
+    };
+
     res.json({
       success: true,
+      period,
+      summary,
       report: {
         year: y,
         openingBalance,
-        totalIncome: monthlySummary.reduce((s, m) => s + m.income, 0),
-        totalExpense: monthlySummary.reduce((s, m) => s + m.expense, 0),
-        closingBalance: runningBalance,
+        totalIncome: totalInflow,
+        totalExpense: totalOutflow,
+        closingBalance,
         monthlySummary,
       },
     });
@@ -100,8 +120,20 @@ export const getProfitLossReport = async (req: AuthRequest, res: Response) => {
     const grossProfit = revenue - costOfGoods;
     const netProfit = grossProfit - operatingExpenses;
 
+    const breakdown: Record<string, number> = {};
+    transactions.forEach((tx) => {
+      if (tx.type === 'EXPENSE') {
+        const cat = tx.category || 'General Expense';
+        breakdown[cat] = (breakdown[cat] || 0) + tx.amount;
+      }
+    });
+
     res.json({
       success: true,
+      totalRevenue: revenue,
+      totalDirectExpenses: costOfGoods + operatingExpenses,
+      netOperatingProfit: netProfit,
+      breakdown,
       report: {
         year: y,
         revenue,

@@ -32,20 +32,22 @@ const Reports: React.FC = () => {
   }, []);
 
   const exportCashFlowPDF = () => {
-    if (!cashFlowData) return;
+    if (!cashFlowData || !cashFlowData.summary) return;
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.text('SVE – MONTHLY CASH FLOW STATEMENT', 14, 20);
     doc.setFontSize(10);
-    doc.text(`Period: ${cashFlowData.period.start} to ${cashFlowData.period.end}`, 14, 28);
+    const pStart = cashFlowData.period?.start || '01-01-2026';
+    const pEnd = cashFlowData.period?.end || '31-12-2026';
+    doc.text(`Period: ${pStart} to ${pEnd}`, 14, 28);
     doc.line(14, 32, 196, 32);
 
     const body = [
-      ['Opening Liquid Balance', formatINR(cashFlowData.summary.openingBalance)],
-      ['Total Cash Inflow (+)', formatINR(cashFlowData.summary.totalInflow)],
-      ['Total Cash Outflow (-)', formatINR(cashFlowData.summary.totalOutflow)],
-      ['Net Cash Flow', formatINR(cashFlowData.summary.netCashFlow)],
-      ['Closing Liquid Balance', formatINR(cashFlowData.summary.closingBalance)],
+      ['Opening Liquid Balance', formatINR(cashFlowData.summary.openingBalance || 0)],
+      ['Total Cash Inflow (+)', formatINR(cashFlowData.summary.totalInflow || 0)],
+      ['Total Cash Outflow (-)', formatINR(cashFlowData.summary.totalOutflow || 0)],
+      ['Net Cash Flow', formatINR(cashFlowData.summary.netCashFlow || 0)],
+      ['Closing Liquid Balance', formatINR(cashFlowData.summary.closingBalance || 0)],
     ];
 
     autoTable(doc, {
@@ -56,17 +58,17 @@ const Reports: React.FC = () => {
       headStyles: { fillColor: [15, 23, 42] },
     });
 
-    doc.save(`Cash_Flow_${cashFlowData.period.start}.pdf`);
+    doc.save(`Cash_Flow_${pStart}.pdf`);
   };
 
   const exportCSV = () => {
-    if (!cashFlowData) return;
+    if (!cashFlowData || !cashFlowData.summary) return;
     let csv = 'Metric,Amount (INR)\n';
-    csv += `Opening Balance,${cashFlowData.summary.openingBalance / 100}\n`;
-    csv += `Total Inflow,${cashFlowData.summary.totalInflow / 100}\n`;
-    csv += `Total Outflow,${cashFlowData.summary.totalOutflow / 100}\n`;
-    csv += `Net Flow,${cashFlowData.summary.netCashFlow / 100}\n`;
-    csv += `Closing Balance,${cashFlowData.summary.closingBalance / 100}\n`;
+    csv += `Opening Balance,${(cashFlowData.summary.openingBalance || 0) / 100}\n`;
+    csv += `Total Inflow,${(cashFlowData.summary.totalInflow || 0) / 100}\n`;
+    csv += `Total Outflow,${(cashFlowData.summary.totalOutflow || 0) / 100}\n`;
+    csv += `Net Flow,${(cashFlowData.summary.netCashFlow || 0) / 100}\n`;
+    csv += `Closing Balance,${(cashFlowData.summary.closingBalance || 0) / 100}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -141,24 +143,25 @@ const Reports: React.FC = () => {
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
               <span className="text-xs uppercase font-bold text-slate-400">Total Money In (Inflow)</span>
               <div className="text-2xl font-black text-emerald-600 mt-2">
-                {formatINR(cashFlowData.summary.totalInflow)}
+                {formatINR(cashFlowData?.summary?.totalInflow || cashFlowData?.report?.totalIncome || 0)}
               </div>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
               <span className="text-xs uppercase font-bold text-slate-400">Total Money Out (Outflow)</span>
               <div className="text-2xl font-black text-rose-600 mt-2">
-                {formatINR(cashFlowData.summary.totalOutflow)}
+                {formatINR(cashFlowData?.summary?.totalOutflow || cashFlowData?.report?.totalExpense || 0)}
               </div>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
               <span className="text-xs uppercase font-bold text-slate-400">Net Cash Flow</span>
-              <div
-                className={`text-2xl font-black mt-2 ${
-                  cashFlowData.summary.netCashFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'
-                }`}
-              >
-                {formatINR(cashFlowData.summary.netCashFlow)}
-              </div>
+              {(() => {
+                const net = cashFlowData?.summary?.netCashFlow ?? ((cashFlowData?.report?.totalIncome || 0) - (cashFlowData?.report?.totalExpense || 0));
+                return (
+                  <div className={`text-2xl font-black mt-2 ${net >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {formatINR(net)}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -167,19 +170,19 @@ const Reports: React.FC = () => {
             <div className="divide-y divide-slate-100 text-sm">
               <div className="py-3 flex justify-between font-semibold text-slate-600">
                 <span>Calculated Opening Liquid Balance:</span>
-                <span>{formatINR(cashFlowData.summary.openingBalance)}</span>
+                <span>{formatINR(cashFlowData?.summary?.openingBalance || cashFlowData?.report?.openingBalance || 0)}</span>
               </div>
               <div className="py-3 flex justify-between font-bold text-emerald-600">
                 <span>Total Received / Income (+):</span>
-                <span>{formatINR(cashFlowData.summary.totalInflow)}</span>
+                <span>{formatINR(cashFlowData?.summary?.totalInflow || cashFlowData?.report?.totalIncome || 0)}</span>
               </div>
               <div className="py-3 flex justify-between font-bold text-rose-600">
                 <span>Total Disbursed / Expenses / Purchases (-):</span>
-                <span>{formatINR(cashFlowData.summary.totalOutflow)}</span>
+                <span>{formatINR(cashFlowData?.summary?.totalOutflow || cashFlowData?.report?.totalExpense || 0)}</span>
               </div>
               <div className="py-3 flex justify-between font-black text-slate-900 text-base pt-4">
                 <span>Current Available Closing Balance:</span>
-                <span className="text-brand-600">{formatINR(cashFlowData.summary.closingBalance)}</span>
+                <span className="text-brand-600">{formatINR(cashFlowData?.summary?.closingBalance || cashFlowData?.report?.closingBalance || 0)}</span>
               </div>
             </div>
           </div>
