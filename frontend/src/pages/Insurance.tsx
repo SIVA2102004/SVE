@@ -65,6 +65,7 @@ const Insurance: React.FC = () => {
   const [frequency, setFrequency] = useState('YEARLY');
   const [startDate, setStartDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
+  const [maturityDate, setMaturityDate] = useState('');
   const [vehicleOrAsset, setVehicleOrAsset] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -114,6 +115,7 @@ const Insurance: React.FC = () => {
         frequency,
         startDate: startDate || undefined,
         expiryDate,
+        maturityDate: maturityDate || undefined,
         vehicleOrAsset: vehicleOrAsset || undefined,
         notes: notes || undefined,
       });
@@ -126,6 +128,9 @@ const Insurance: React.FC = () => {
       setNominee('');
       setSumAssuredRupees('');
       setPremiumAmountRupees('');
+      setStartDate('');
+      setExpiryDate('');
+      setMaturityDate('');
       setVehicleOrAsset('');
       setNotes('');
       await fetchPolicies();
@@ -273,6 +278,30 @@ const Insurance: React.FC = () => {
                       <div className="flex justify-between">
                         <span className="text-slate-500">Sum Assured:</span>
                         <span className="font-bold text-emerald-700">{formatINR(p.sumAssured)}</span>
+                      </div>
+                    )}
+                    {p.startDate && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Start Date:</span>
+                        <span className="font-medium text-slate-700">
+                          {new Date(p.startDate).toLocaleDateString('en-IN')}
+                        </span>
+                      </div>
+                    )}
+                    {p.expiryDate && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">End / Expiry Date:</span>
+                        <span className="font-medium text-slate-700">
+                          {new Date(p.expiryDate).toLocaleDateString('en-IN')}
+                        </span>
+                      </div>
+                    )}
+                    {p.maturityDate && (
+                      <div className="flex justify-between bg-emerald-50/60 px-2 py-1 rounded">
+                        <span className="text-emerald-800 font-semibold">Maturity Date:</span>
+                        <span className="font-bold text-emerald-900">
+                          {new Date(p.maturityDate).toLocaleDateString('en-IN')}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -459,29 +488,52 @@ const Insurance: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Sum Assured / Cover (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 1000000"
+                  value={sumAssuredRupees}
+                  onChange={(e) => setSumAssuredRupees(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Sum Assured / Cover (₹)
+                    Insurance Start Date
                   </label>
                   <input
-                    type="number"
-                    step="any"
-                    placeholder="e.g. 1000000"
-                    value={sumAssuredRupees}
-                    onChange={(e) => setSumAssuredRupees(e.target.value)}
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Renewal / Expiry Date *
+                    End / Renewal Date *
                   </label>
                   <input
                     type="date"
                     required
                     value={expiryDate}
                     onChange={(e) => setExpiryDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Maturity Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={maturityDate}
+                    onChange={(e) => setMaturityDate(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
                   />
                 </div>

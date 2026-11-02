@@ -43,6 +43,7 @@ export const createInsurancePolicy = async (req: AuthRequest, res: Response) => 
       frequency = 'YEARLY',
       startDate,
       expiryDate,
+      maturityDate,
       vehicleOrAsset,
       notes,
     } = req.body;
@@ -64,6 +65,7 @@ export const createInsurancePolicy = async (req: AuthRequest, res: Response) => 
         frequency,
         startDate: startDate ? new Date(startDate) : new Date(),
         expiryDate: new Date(expiryDate),
+        maturityDate: maturityDate ? new Date(maturityDate) : null,
         nextPaymentDate: new Date(expiryDate),
         vehicleOrAsset: vehicleOrAsset || null,
         notes: notes || null,
