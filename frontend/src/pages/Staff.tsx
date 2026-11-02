@@ -72,6 +72,7 @@ const StaffPage: React.FC = () => {
       await api.post('/staff', {
         name,
         phone,
+        mobile: phone,
         designation,
         monthlySalaryRupees: parseFloat(monthlySalaryRupees),
       });
@@ -82,7 +83,7 @@ const StaffPage: React.FC = () => {
       setMonthlySalaryRupees('');
       await fetchStaff();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to create staff');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to create staff');
     } finally {
       setSaving(false);
     }

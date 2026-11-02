@@ -28,11 +28,22 @@ export const getStaff = async (req: AuthRequest, res: Response) => {
 
 export const createStaff = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, mobile, address, salaryType = 'MONTHLY', monthlySalaryRupees, dailyWageRupees, bankDetails, notes } =
-      req.body;
+    const {
+      name,
+      mobile,
+      phone,
+      address,
+      designation,
+      salaryType = 'MONTHLY',
+      monthlySalaryRupees,
+      dailyWageRupees,
+      bankDetails,
+      notes,
+    } = req.body;
 
-    if (!name || !mobile) {
-      return res.status(400).json({ success: false, message: 'Staff name and mobile are required.' });
+    const contactNumber = mobile || phone || '';
+    if (!name || !contactNumber) {
+      return res.status(400).json({ success: false, message: 'Staff name and mobile number are required.' });
     }
 
     const monthlyPaise = monthlySalaryRupees ? rupeesToPaise(monthlySalaryRupees) : 0;
@@ -41,13 +52,13 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
     const staffMember = await prisma.staff.create({
       data: {
         name,
-        mobile,
+        mobile: contactNumber,
         address: address || null,
         salaryType,
         monthlySalary: monthlyPaise,
         dailyWage: dailyPaise,
         bankDetails: bankDetails || null,
-        notes: notes || null,
+        notes: notes || designation ? `Designation: ${designation || 'Staff Member'}` : null,
       },
     });
 
