@@ -74,17 +74,21 @@ model PaymentMethodAccount {
   id             String   @id @default(uuid())
   name           String // e.g. Cash in Register, Current Bank Account, Shop UPI Merchant
   type           String // CASH, BANK, UPI, CHEQUE, CARD, OTHER
+  scope          String   @default("BUSINESS") // BUSINESS, PERSONAL, FAMILY
   accountNumber  String?
   bankName       String?
   openingBalance Int      @default(0) // in paise
   currentBalance Int      @default(0) // in paise
   isDefault      Boolean  @default(false)
   isActive       Boolean  @default(true)
+  isShared       Boolean  @default(false) // for shared family accounts
+  ownerId        String?  // private account owner User id
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   transactions Transaction[]
   payments     Payment[]
+  personalIncomes PersonalIncome[]
 
   @@map("payment_method_accounts")
 }
@@ -186,7 +190,8 @@ model Payable {
 model Expense {
   id            String    @id @default(uuid())
   name          String
-  category      String // Shop Rent, Electricity, Internet, Transport, Fuel, Maintenance, Insurance, EMI, Loan, Staff Salary, Repairs, Taxes, Office Expenses, Purchases, Miscellaneous, Custom
+  scope         String    @default("BUSINESS") // BUSINESS, PERSONAL, FAMILY
+  category      String // Shop Rent, Electricity, Internet, Transport, Fuel, Maintenance, Insurance, EMI, Loan, Staff Salary, Repairs, Taxes, Food, Groceries, Medical, Household, Education, Travel, Personal Drawings, Other
   amount        Int // in paise
   date          DateTime  @default(now())
   paymentMethod String    @default("CASH")
@@ -202,6 +207,7 @@ model Expense {
 
   transaction Transaction?
 
+  @@index([scope])
   @@index([category])
   @@index([date])
   @@map("expenses")
@@ -210,7 +216,8 @@ model Expense {
 model Transaction {
   id                     String   @id @default(uuid())
   date                   DateTime @default(now())
-  type                   String // INCOME, EXPENSE, TRANSFER, RECEIVABLE_PAYMENT, PAYABLE_PAYMENT, SALARY, EMI, LOAN, INSURANCE
+  scope                  String   @default("BUSINESS") // BUSINESS, PERSONAL, FAMILY
+  type                   String // INCOME, EXPENSE, TRANSFER, RECEIVABLE_PAYMENT, PAYABLE_PAYMENT, SALARY, EMI, LOAN, INSURANCE, CHIT_CONTRIBUTION, CHIT_PAYOUT, DRAWINGS
   category               String
   amount                 Int // in paise
   paymentMethod          String   @default("CASH") // CASH, UPI, BANK_TRANSFER, CHEQUE, CARD, OTHER
@@ -229,6 +236,8 @@ model Transaction {
   expenseId         String? @unique
   salaryRecordId    String? @unique
   loanInstallmentId String? @unique
+  chitInstallmentId String? @unique
+  personalIncomeId  String? @unique
 
   createdBy            User                  @relation(fields: [createdById], references: [id])
   paymentMethodAccount PaymentMethodAccount? @relation(fields: [paymentMethodAccountId], references: [id])
@@ -236,8 +245,11 @@ model Transaction {
   expense              Expense?              @relation(fields: [expenseId], references: [id])
   salaryRecord         SalaryRecord?         @relation(fields: [salaryRecordId], references: [id])
   loanInstallment      LoanInstallment?      @relation(fields: [loanInstallmentId], references: [id])
+  chitInstallment      ChitInstallment?      @relation(fields: [chitInstallmentId], references: [id])
+  personalIncome       PersonalIncome?       @relation(fields: [personalIncomeId], references: [id])
   auditLogs            AuditLog[]
 
+  @@index([scope])
   @@index([date])
   @@index([type])
   @@map("transactions")
@@ -343,6 +355,8 @@ model SalaryRecord {
 
 model Loan {
   id                  String    @id @default(uuid())
+  scope               String    @default("BUSINESS") // BUSINESS, PERSONAL, FAMILY
+  loanType            String    @default("BUSINESS_LOAN") // PERSONAL_LOAN, BUSINESS_LOAN, VEHICLE_LOAN, HOME_LOAN, GOLD_LOAN, OTHER
   loanName            String
   lender              String // Bank or Financier
   principalAmount     Int // in paise
@@ -361,6 +375,7 @@ model Loan {
 
   installments LoanInstallment[]
 
+  @@index([scope])
   @@map("loans")
 }
 
@@ -391,23 +406,103 @@ model LoanInstallment {
 
 model InsurancePolicy {
   id              String    @id @default(uuid())
-  insuranceType   String // Shop Insurance, Vehicle Insurance, Health Insurance, Equipment Insurance
+  scope           String    @default("BUSINESS") // BUSINESS, PERSONAL, FAMILY
+  insuranceType   String // Shop Insurance, Vehicle Insurance, Health Insurance, Life Insurance, LIC, Property Insurance, Other
   policyName      String
   company         String
   policyNumber    String
+  policyHolder    String?   // Name of person or entity insured
+  nominee         String?
+  sumAssured      Int       @default(0) // in paise
   premiumAmount   Int // in paise
-  frequency       String    @default("YEARLY") // MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY
+  frequency       String    @default("YEARLY") // MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY, SINGLE
   startDate       DateTime
   expiryDate      DateTime
+  maturityDate    DateTime?
   nextPaymentDate DateTime?
   vehicleOrAsset  String?
   documentUrl     String?
   status          String    @default("ACTIVE") // ACTIVE, EXPIRING_SOON, EXPIRED
   reminderDays    Int       @default(7)
+  notes           String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  @@index([scope])
   @@map("insurance_policies")
+}
+
+model ChitScheme {
+  id                  String    @id @default(uuid())
+  scope               String    @default("PERSONAL") // PERSONAL, FAMILY, BUSINESS
+  chitName            String
+  chitCompany         String // e.g. Shriram Chits, Kapil Chits, Private Group
+  chitNumber          String?
+  totalValue          Int // in paise, e.g. 5,00,000 INR
+  monthlyContribution Int // in paise, e.g. 10,000 INR
+  totalMonths         Int // e.g. 50 months
+  currentMonth        Int       @default(1)
+  startDate           DateTime
+  endDate             DateTime?
+  dueDayOfMonth       Int       @default(10)
+  status              String    @default("ACTIVE") // ACTIVE, COMPLETED, SURRENDERED
+  isPrized            Boolean   @default(false) // Whether auction was won / payout received
+  prizedMonth         Int?
+  prizedAmount        Int? // Payout received in paise
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  installments ChitInstallment[]
+
+  @@index([scope])
+  @@map("chit_schemes")
+}
+
+model ChitInstallment {
+  id             String    @id @default(uuid())
+  chitSchemeId   String
+  monthNumber    Int
+  dueDate        DateTime
+  amountExpected Int // in paise
+  amountPaid     Int       @default(0) // in paise
+  dividendEarned Int       @default(0) // in paise (discount)
+  paidDate       DateTime?
+  status         String    @default("PENDING") // PENDING, PAID, OVERDUE
+  paymentMethod  String    @default("BANK")
+  receiptUrl     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  chitScheme  ChitScheme   @relation(fields: [chitSchemeId], references: [id], onDelete: Cascade)
+  transaction Transaction?
+
+  @@index([chitSchemeId])
+  @@index([dueDate])
+  @@map("chit_installments")
+}
+
+model PersonalIncome {
+  id                     String   @id @default(uuid())
+  scope                  String   @default("PERSONAL") // PERSONAL, FAMILY
+  source                 String // Salary, Rental, Business Drawings, Interest, Agriculture, Other
+  amount                 Int // in paise
+  date                   DateTime @default(now())
+  paymentMethod          String   @default("BANK")
+  paymentMethodAccountId String?
+  description            String?
+  attachmentUrl          String?
+  createdById            String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  paymentMethodAccount PaymentMethodAccount? @relation(fields: [paymentMethodAccountId], references: [id])
+  transaction          Transaction?
+
+  @@index([scope])
+  @@index([date])
+  @@map("personal_incomes")
 }
 
 model RecurringPayment {
