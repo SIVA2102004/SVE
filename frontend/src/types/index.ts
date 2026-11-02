@@ -108,11 +108,15 @@ export interface Staff {
   id: string;
   name: string;
   phone: string;
+  mobile?: string;
   designation: string;
+  salaryType?: string;
   monthlySalary: number; // in paise
+  dailyWage?: number; // in paise
   dailyRate: number; // in paise
   joiningDate: string;
   status: 'ACTIVE' | 'INACTIVE';
+  attendance?: Attendance[];
 }
 
 export interface Attendance {

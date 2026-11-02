@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  History,
+  Users,
 } from 'lucide-react';
 
 const StaffPage: React.FC = () => {
@@ -19,6 +21,7 @@ const StaffPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [newStaffModal, setNewStaffModal] = useState(false);
   const [attendanceModal, setAttendanceModal] = useState<Staff | null>(null);
+  const [historyModal, setHistoryModal] = useState<Staff | null>(null);
   const [salaryModal, setSalaryModal] = useState<Staff | null>(null);
 
   // New Staff form
@@ -47,8 +50,9 @@ const StaffPage: React.FC = () => {
       const normalized = list.map((st: any) => ({
         ...st,
         phone: st.mobile,
-        designation: st.designation || 'Staff Member',
+        designation: st.designation || (st.notes && st.notes.startsWith('Designation:') ? st.notes.replace('Designation:', '').trim() : 'Staff Member'),
         status: st.status || 'ACTIVE',
+        attendance: Array.isArray(st.attendance) ? st.attendance : [],
       }));
       setStaffList(normalized);
       const accList = Array.isArray(aRes.data) ? aRes.data : aRes.data?.accounts || [];
@@ -201,9 +205,45 @@ const StaffPage: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-slate-400">Daily Rate</span>
-                    <p className="text-xs font-bold text-slate-600">{formatINR(st.dailyRate)} / day</p>
+                    <p className="text-xs font-bold text-slate-600">{formatINR(st.dailyRate || Math.round(st.monthlySalary / 30))} / day</p>
                   </div>
                 </div>
+
+                {/* Present / Absent Quick Stats Bar */}
+                {st.attendance && st.attendance.length > 0 && (
+                  <div className="mt-3 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Recent Attendance</span>
+                      <button
+                        onClick={() => setHistoryModal(st)}
+                        className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 flex items-center space-x-1"
+                      >
+                        <History className="w-3 h-3" />
+                        <span>View Log</span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 text-center">
+                      <div className="p-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                        <span className="block text-[10px] font-bold text-emerald-700 uppercase">Present</span>
+                        <span className="text-xs font-black text-emerald-800">
+                          {st.attendance.filter((a) => a.status === 'PRESENT').length}
+                        </span>
+                      </div>
+                      <div className="p-1 bg-rose-50 rounded-lg border border-rose-100">
+                        <span className="block text-[10px] font-bold text-rose-700 uppercase">Absent</span>
+                        <span className="text-xs font-black text-rose-800">
+                          {st.attendance.filter((a) => a.status === 'ABSENT').length}
+                        </span>
+                      </div>
+                      <div className="p-1 bg-amber-50 rounded-lg border border-amber-100">
+                        <span className="block text-[10px] font-bold text-amber-700 uppercase">Half/Leave</span>
+                        <span className="text-xs font-black text-amber-800">
+                          {st.attendance.filter((a) => a.status === 'HALF_DAY' || a.status === 'LEAVE').length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}
@@ -437,6 +477,69 @@ const StaffPage: React.FC = () => {
                 {saving ? 'Processing...' : 'Disburse Salary Payment'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ATTENDANCE HISTORY LOG MODAL */}
+      {historyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="font-bold text-base text-slate-800">Attendance Log</h3>
+                <p className="text-xs text-slate-500">{historyModal.name} ({historyModal.designation})</p>
+              </div>
+              <button onClick={() => setHistoryModal(null)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+              {historyModal.attendance && historyModal.attendance.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {historyModal.attendance.map((att) => (
+                    <div key={att.id} className="py-2.5 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-slate-800">
+                          {new Date(att.date).toLocaleDateString('en-IN', {
+                            weekday: 'short',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </p>
+                        {att.notes && <p className="text-[11px] text-slate-400 mt-0.5">{att.notes}</p>}
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                          att.status === 'PRESENT'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : att.status === 'ABSENT'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        {att.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  No attendance records logged for this employee yet.
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-slate-50 border-t border-slate-100 text-right">
+              <button
+                onClick={() => setHistoryModal(null)}
+                className="py-1.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl text-xs"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
