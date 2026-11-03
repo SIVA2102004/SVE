@@ -582,12 +582,10 @@ const StaffPage: React.FC = () => {
                     <span className="text-slate-500">Days Absent:</span>
                     <span className="font-bold text-rose-600">{salaryCalc.absentDays} days</span>
                   </div>
-                  {salaryCalc.absentDays > 0 && (
-                    <div className="flex justify-between text-rose-600 font-semibold">
-                      <span>Absent Days Deduction:</span>
-                      <span>- ₹{Number(salaryCalc.absentDeductionRupees || (salaryCalc.absentDays * (salaryCalc.dailyRateRupees || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between text-emerald-700 font-semibold bg-emerald-50/70 p-2 rounded-lg">
+                    <span>Pay for Present Days ({salaryCalc.presentDays} days × ₹{(salaryCalc.dailyRateRupees || 0).toFixed(2)}):</span>
+                    <span className="font-bold">₹{Number(salaryCalc.calculatedSalaryRupees || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
                   {salaryCalc.advanceRupees > 0 && (
                     <div className="flex justify-between text-amber-700 font-semibold">
                       <span>Deducted Advance Salary:</span>

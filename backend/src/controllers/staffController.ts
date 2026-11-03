@@ -216,18 +216,15 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     let baseSalaryPaise = staff.monthlySalary;
     let calculatedSalaryPaise = baseSalaryPaise;
 
-    // Daily rate based on actual days in current month (e.g., 30 for Nov, 31 for Dec)
-    const dailyRatePaise = Math.round(baseSalaryPaise / totalDaysInMonth);
+    // Daily rate based on 30 calendar days or actual month days (₹11,500 / 30 = ₹383.33/day)
+    const dailyRatePaise = Math.round(baseSalaryPaise / (totalDaysInMonth || 30));
 
     if (staff.salaryType === 'DAILY') {
       calculatedSalaryPaise = Math.round(effectivePresentDays * staff.dailyWage);
     } else {
-      // Option B: Monthly base salary minus unworked absent days
-      // Effective absent penalty = full absent days + half days * 0.5
-      const effectiveAbsentDays = absentDays + halfDays * 0.5;
-      const absentDeductionPaise = Math.round(effectiveAbsentDays * dailyRatePaise);
-
-      calculatedSalaryPaise = Math.max(0, baseSalaryPaise - absentDeductionPaise);
+      // User requirement: Pay strictly for TOTAL AMOUNT OF PRESENT DAYS ONLY
+      // e.g. 1 Day Present * ₹383.33/day = ₹383.33
+      calculatedSalaryPaise = Math.round(effectivePresentDays * dailyRatePaise);
     }
 
     // Check existing advance already taken for this month in salaryRecord
