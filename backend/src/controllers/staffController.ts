@@ -81,6 +81,10 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
     const attDate = date ? new Date(date) : new Date();
     attDate.setHours(0, 0, 0, 0);
 
+    const staff = await prisma.staff.findUnique({
+      where: { id: staffId },
+    });
+
     const record = await prisma.attendance.upsert({
       where: {
         staffId_date: {
@@ -100,8 +104,48 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    broadcastEvent('attendance_marked', record);
-    res.json({ success: true, record });
+    const dateStr = attDate.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    // Formulate automated WhatsApp message content
+    let whatsappMessage = '';
+    const cleanPhone = (staff?.mobile || '').replace(/[^0-9]/g, '');
+
+    if (status === 'PRESENT') {
+      whatsappMessage = `Namaste ${staff?.name || 'Staff'},\nYour attendance has been marked *PRESENT* for today (${dateStr}) at SVE.\nThank you! Have a productive workday.`;
+    } else if (status === 'ABSENT') {
+      whatsappMessage = `Namaste ${staff?.name || 'Staff'},\nYou have been marked *ABSENT* for today (${dateStr}) at SVE.\nIf this is an error or you need leave approval, please inform management immediately.`;
+    } else if (status === 'HALF_DAY') {
+      whatsappMessage = `Namaste ${staff?.name || 'Staff'},\nYour attendance for today (${dateStr}) has been marked as *HALF DAY* at SVE.`;
+    } else {
+      whatsappMessage = `Namaste ${staff?.name || 'Staff'},\nYour attendance status for today (${dateStr}) has been updated to *${status}* at SVE.`;
+    }
+
+    const whatsappUrl = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=91${cleanPhone.slice(-10)}&text=${encodeURIComponent(whatsappMessage)}`
+      : null;
+
+    broadcastEvent('attendance_marked', {
+      ...record,
+      staffName: staff?.name,
+      staffPhone: staff?.mobile,
+      whatsappMessage,
+      whatsappUrl,
+    });
+
+    res.json({
+      success: true,
+      record,
+      staff: {
+        name: staff?.name,
+        phone: staff?.mobile,
+      },
+      whatsappMessage,
+      whatsappUrl,
+    });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -109,8 +153,18 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
 
 export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => {
   try {
-    const { staffId, month, year, advanceRupees = 0, bonusRupees = 0, deductionRupees = 0, paymentMethod = 'CASH', paymentMethodAccountId } =
-      req.body;
+    const {
+      staffId: bodyStaffId,
+      month: bodyMonth,
+      year: bodyYear,
+      advanceRupees = 0,
+      bonusRupees = 0,
+      deductionRupees = 0,
+      paymentMethod = 'CASH',
+      paymentMethodAccountId,
+    } = req.method === 'GET' ? req.query : req.body;
+
+    const staffId = (req.params.staffId || bodyStaffId) as string;
 
     const staff = await prisma.staff.findUnique({
       where: { id: staffId },
@@ -120,11 +174,25 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     if (!staff) return res.status(404).json({ success: false, message: 'Staff member not found.' });
 
     // Calculate attendance for specified month
-    const m = parseInt(String(month));
-    const y = parseInt(String(year));
+    let m = new Date().getMonth() + 1;
+    let y = new Date().getFullYear();
+
+    if (bodyMonth) {
+      if (typeof bodyMonth === 'string' && bodyMonth.includes('-')) {
+        const parts = bodyMonth.split('-');
+        y = parseInt(parts[0]);
+        m = parseInt(parts[1]);
+      } else {
+        m = parseInt(String(bodyMonth));
+      }
+    }
+    if (bodyYear) {
+      y = parseInt(String(bodyYear));
+    }
 
     const startOfMonth = new Date(y, m - 1, 1);
     const endOfMonth = new Date(y, m, 0, 23, 59, 59, 999);
+    const totalDaysInMonth = new Date(y, m, 0).getDate();
 
     const monthAttendance = await prisma.attendance.findMany({
       where: {
@@ -133,17 +201,17 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
       },
     });
 
-    const totalDaysInMonth = new Date(y, m, 0).getDate();
-    const workingDaysStandard = 26;
-
     let presentDays = 0;
     let halfDays = 0;
+    let absentDays = 0;
     monthAttendance.forEach((a) => {
       if (a.status === 'PRESENT') presentDays += 1;
-      else if (a.status === 'HALF_DAY') halfDays += 0.5;
+      else if (a.status === 'HALF_DAY') halfDays += 1;
+      else if (a.status === 'ABSENT') absentDays += 1;
     });
 
-    const effectivePresentDays = presentDays + halfDays;
+    const effectivePresentDays = presentDays + halfDays * 0.5;
+    const workingDaysStandard = 26;
 
     let baseSalaryPaise = staff.monthlySalary;
     let calculatedSalaryPaise = baseSalaryPaise;
@@ -151,15 +219,56 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     if (staff.salaryType === 'DAILY') {
       calculatedSalaryPaise = Math.round(effectivePresentDays * staff.dailyWage);
     } else {
-      // Monthly with attendance proration
-      calculatedSalaryPaise = Math.round((baseSalaryPaise / workingDaysStandard) * Math.min(workingDaysStandard, effectivePresentDays || workingDaysStandard));
+      // Monthly salary prorated based on attendance
+      // If attendance was recorded, prorate based on 26 working days standard
+      if (monthAttendance.length > 0) {
+        calculatedSalaryPaise = Math.round(
+          (baseSalaryPaise / workingDaysStandard) * Math.min(workingDaysStandard, effectivePresentDays)
+        );
+      } else {
+        calculatedSalaryPaise = baseSalaryPaise;
+      }
     }
 
-    const advancePaise = rupeesToPaise(advanceRupees);
-    const bonusPaise = rupeesToPaise(bonusRupees);
-    const deductionPaise = rupeesToPaise(deductionRupees);
+    // Check existing advance already taken for this month in salaryRecord
+    const existingRecord = await prisma.salaryRecord.findUnique({
+      where: {
+        staffId_month_year: { staffId, month: m, year: y },
+      },
+    });
 
-    const finalSalaryPaise = Math.max(0, calculatedSalaryPaise + bonusPaise - advancePaise - deductionPaise);
+    const recordedAdvancePaise = existingRecord?.advance || 0;
+    const additionalAdvancePaise = rupeesToPaise(Number(advanceRupees) || 0);
+    const totalAdvancePaise = recordedAdvancePaise + additionalAdvancePaise;
+
+    const bonusPaise = rupeesToPaise(Number(bonusRupees) || 0);
+    const deductionPaise = rupeesToPaise(Number(deductionRupees) || 0);
+
+    const payablePaise = Math.max(0, calculatedSalaryPaise + bonusPaise - totalAdvancePaise - deductionPaise);
+    const payableRupees = payablePaise / 100;
+
+    // If it's a GET request, just return the calculation breakdown
+    if (req.method === 'GET') {
+      return res.json({
+        success: true,
+        staffId,
+        staffName: staff.name,
+        month: m,
+        year: y,
+        daysInMonth: totalDaysInMonth,
+        presentDays: effectivePresentDays,
+        absentDays,
+        baseSalaryRupees: baseSalaryPaise / 100,
+        calculatedSalaryRupees: calculatedSalaryPaise / 100,
+        advanceRupees: totalAdvancePaise / 100,
+        bonusRupees: bonusPaise / 100,
+        deductionRupees: deductionPaise / 100,
+        payableRupees,
+        payablePaise,
+      });
+    }
+
+    const finalSalaryPaise = payablePaise;
 
     const result = await prisma.$transaction(async (tx) => {
       const salaryRecord = await tx.salaryRecord.upsert({
@@ -169,7 +278,7 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
         update: {
           baseSalary: baseSalaryPaise,
           attendanceAdjustment: calculatedSalaryPaise - baseSalaryPaise,
-          advance: advancePaise,
+          advance: totalAdvancePaise,
           bonus: bonusPaise,
           deduction: deductionPaise,
           finalSalary: finalSalaryPaise,
@@ -185,7 +294,7 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
           year: y,
           baseSalary: baseSalaryPaise,
           attendanceAdjustment: calculatedSalaryPaise - baseSalaryPaise,
-          advance: advancePaise,
+          advance: totalAdvancePaise,
           bonus: bonusPaise,
           deduction: deductionPaise,
           finalSalary: finalSalaryPaise,
@@ -207,13 +316,13 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
           paymentMethodAccountId: paymentMethodAccountId || null,
           source: 'Shop Account',
           destination: staff.name,
-          description: `Salary paid to ${staff.name} for ${m}/${y}`,
+          description: `Salary paid to ${staff.name} for ${m}/${y} (Net: ₹${payableRupees})`,
           salaryRecordId: salaryRecord.id,
           createdById: req.user!.id,
         },
       });
 
-      if (paymentMethodAccountId) {
+      if (paymentMethodAccountId && finalSalaryPaise > 0) {
         await tx.paymentMethodAccount.update({
           where: { id: paymentMethodAccountId },
           data: { currentBalance: { decrement: finalSalaryPaise } },
@@ -228,7 +337,14 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
           entityType: 'STAFF',
           entityId: staff.id,
           amount: finalSalaryPaise,
-          details: JSON.stringify({ staff: staff.name, month: m, year: y }),
+          details: JSON.stringify({
+            staff: staff.name,
+            month: m,
+            year: y,
+            presentDays: effectivePresentDays,
+            absentDays,
+            payableRupees,
+          }),
         },
       });
 
@@ -236,7 +352,12 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     });
 
     broadcastEvent('salary_paid', result);
-    res.json({ success: true, message: 'Salary calculated and paid successfully', data: result });
+    res.json({
+      success: true,
+      message: `Salary of ₹${payableRupees.toLocaleString('en-IN')} calculated and paid successfully to ${staff.name}`,
+      data: result,
+      payableRupees,
+    });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -361,5 +482,89 @@ export const payAdvanceSalary = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const runAutoAttendanceCheck = async (req: AuthRequest, res: Response) => {
+  try {
+    const { action } = req.body; // 'CHECK_9AM' or 'AUTO_ABSENT_930AM'
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const activeStaff = await prisma.staff.findMany({
+      where: { status: 'ACTIVE' },
+      include: {
+        attendance: {
+          where: { date: today },
+        },
+      },
+    });
+
+    if (action === 'AUTO_ABSENT_930AM') {
+      const unmarked = activeStaff.filter((s) => s.attendance.length === 0);
+      const absentResults: any[] = [];
+
+      for (const staff of unmarked) {
+        const record = await prisma.attendance.create({
+          data: {
+            staffId: staff.id,
+            date: today,
+            status: 'ABSENT',
+            notes: 'Auto-marked ABSENT at 9:30 AM cutoff',
+          },
+        });
+
+        const dateStr = today.toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+
+        const cleanPhone = (staff.mobile || '').replace(/[^0-9]/g, '');
+        const whatsappMessage = `Namaste ${staff.name},\nYou have been marked *ABSENT* for today (${dateStr}) at SVE.\nIf this is an error, please reach out to the store manager.`;
+        const whatsappUrl = cleanPhone
+          ? `https://api.whatsapp.com/send?phone=91${cleanPhone.slice(-10)}&text=${encodeURIComponent(whatsappMessage)}`
+          : null;
+
+        absentResults.push({
+          staffId: staff.id,
+          name: staff.name,
+          phone: staff.mobile,
+          status: 'ABSENT',
+          whatsappMessage,
+          whatsappUrl,
+        });
+      }
+
+      broadcastEvent('attendance_auto_absent_930am', {
+        count: absentResults.length,
+        autoMarked: absentResults,
+      });
+
+      return res.json({
+        success: true,
+        message: `${absentResults.length} staff member(s) auto-marked ABSENT for 9:30 AM cutoff`,
+        autoMarked: absentResults,
+      });
+    }
+
+    // Default 9:00 AM check
+    const pendingList = activeStaff
+      .filter((s) => s.attendance.length === 0)
+      .map((s) => ({ id: s.id, name: s.name, phone: s.mobile }));
+
+    broadcastEvent('attendance_reminder_9am', {
+      unmarkedStaffCount: pendingList.length,
+      pendingList,
+    });
+
+    res.json({
+      success: true,
+      pendingCount: pendingList.length,
+      pendingList,
+      message: `9:00 AM intimation: ${pendingList.length} staff member(s) pending attendance`,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

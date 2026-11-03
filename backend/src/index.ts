@@ -8,6 +8,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/apiRoutes.js';
 import { initWebSocket } from './websocket/socket.js';
+import { initAttendanceScheduler } from './services/attendanceScheduler.js';
 
 dotenv.config();
 
@@ -88,6 +89,9 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 // 9. Initialize Real-Time WebSocket Hub
 initWebSocket(server, FRONTEND_URL);
+
+// 10. Initialize 9:00 AM & 9:30 AM Attendance Scheduler
+initAttendanceScheduler();
 
 server.listen(PORT, () => {
   console.log(`🚀 SVE Production Server running on http://localhost:${PORT}`);

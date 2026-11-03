@@ -37,7 +37,7 @@ import {
   voidTransaction,
 } from '../controllers/transactionController.js';
 import { getLoans, createLoan, payEmiInstallment } from '../controllers/loanController.js';
-import { getStaff, createStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary } from '../controllers/staffController.js';
+import { getStaff, createStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, runAutoAttendanceCheck } from '../controllers/staffController.js';
 import {
   getPaymentAccounts,
   getInsurancePolicies,
@@ -126,6 +126,7 @@ router.post('/staff/:staffId/salary/pay', requireRoles('OWNER', 'MANAGER'), calc
 router.post('/salary/pay', requireRoles('OWNER', 'MANAGER'), calculateAndPaySalary as any);
 router.post('/staff/advance', requireRoles('OWNER', 'MANAGER'), payAdvanceSalary as any);
 router.post('/staff/:staffId/advance', requireRoles('OWNER', 'MANAGER'), payAdvanceSalary as any);
+router.post('/staff/attendance-timer-check', requireRoles('OWNER', 'MANAGER'), runAutoAttendanceCheck as any);
 
 // 7. Insurance & Reminders
 router.get('/insurance', getInsurancePolicies as any);

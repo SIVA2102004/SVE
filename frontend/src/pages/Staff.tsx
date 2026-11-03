@@ -16,6 +16,10 @@ import {
   Users,
   CreditCard,
   Banknote,
+  Send,
+  MessageSquare,
+  Bell,
+  AlertTriangle,
 } from 'lucide-react';
 
 const StaffPage: React.FC = () => {
@@ -44,9 +48,16 @@ const StaffPage: React.FC = () => {
   const [attDate, setAttDate] = useState(new Date().toISOString().split('T')[0]);
   const [attStatus, setAttStatus] = useState<'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LEAVE'>('PRESENT');
   const [attNotes, setAttNotes] = useState('');
+  const [lastWhatsAppUrl, setLastWhatsAppUrl] = useState<string | null>(null);
+  const [lastWhatsAppMessage, setLastWhatsAppMessage] = useState<string | null>(null);
+  const [whatsAppModalStaff, setWhatsAppModalStaff] = useState<any>(null);
+
+  // 9:00 AM & 9:30 AM Timer & Auto-Intimation State
+  const [timerAlert, setTimerAlert] = useState<{ type: '9AM' | '930AM'; message: string; count?: number } | null>(null);
+  const [autoAbsentRunning, setAutoAbsentRunning] = useState(false);
 
   // Salary Payment Form
-  const [month, setMonth] = useState('2026-10');
+  const [month, setMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [salaryCalc, setSalaryCalc] = useState<any>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAcc, setSelectedAcc] = useState('');
@@ -108,15 +119,34 @@ const StaffPage: React.FC = () => {
     if (!attendanceModal) return;
     setSaving(true);
     try {
-      await api.post('/staff/attendance', {
+      const res = await api.post('/staff/attendance', {
         staffId: attendanceModal.id,
         date: attDate,
         status: attStatus,
         notes: attNotes,
       });
-      alert(`Attendance for ${attendanceModal.name} on ${attDate} recorded as ${attStatus}!`);
+
+      const { whatsappUrl, whatsappMessage } = res.data;
+      const targetStaff = attendanceModal;
+
       setAttendanceModal(null);
       setAttNotes('');
+      await fetchStaff();
+
+      // Prompt to dispatch WhatsApp notification immediately
+      if (whatsappUrl) {
+        setWhatsAppModalStaff({
+          name: targetStaff.name,
+          phone: targetStaff.phone,
+          status: attStatus,
+          message: whatsappMessage,
+          url: whatsappUrl,
+        });
+        // Open WhatsApp web / mobile app automatically in separate tab
+        window.open(whatsappUrl, '_blank');
+      } else {
+        alert(`Attendance for ${targetStaff.name} on ${attDate} recorded as ${attStatus}!`);
+      }
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to mark attendance');
     } finally {
@@ -124,10 +154,25 @@ const StaffPage: React.FC = () => {
     }
   };
 
-  const openSalaryModal = async (staff: Staff) => {
+  // Trigger manual or timer-based 9:30 AM Cutoff Auto-Absent check
+  const handleAutoAbsentTrigger = async () => {
+    if (!window.confirm('Mark all staff who have not arrived yet as ABSENT for today? (9:30 AM Cutoff)')) return;
+    setAutoAbsentRunning(true);
+    try {
+      const res = await api.post('/staff/attendance-timer-check', { action: 'AUTO_ABSENT_930AM' });
+      alert(res.data?.message || '9:30 AM cutoff executed successfully!');
+      await fetchStaff();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to run auto-absent check');
+    } finally {
+      setAutoAbsentRunning(false);
+    }
+  };
+
+  const openSalaryModal = async (staff: Staff, targetMonth = month) => {
     setSalaryModal(staff);
     try {
-      const res = await api.get(`/staff/${staff.id}/salary/calculate?month=${month}`);
+      const res = await api.get(`/staff/${staff.id}/salary/calculate?month=${targetMonth}`);
       setSalaryCalc(res.data);
     } catch (err) {
       console.error(err);
@@ -193,7 +238,16 @@ const StaffPage: React.FC = () => {
             Track daily employee attendance, automatic prorated pay calculation, and payouts
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleAutoAbsentTrigger}
+            disabled={autoAbsentRunning}
+            className="flex items-center space-x-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 shadow-sm transition-all"
+            title="Auto-marks all unmarked employees as ABSENT for today (9:30 AM Cutoff rule)"
+          >
+            <Clock className="w-4 h-4 text-rose-600" />
+            <span>{autoAbsentRunning ? 'Checking...' : '9:30 AM Auto-Absent'}</span>
+          </button>
           <button
             onClick={() => setNewStaffModal(true)}
             className="flex items-center space-x-1.5 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
@@ -201,6 +255,24 @@ const StaffPage: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>Add Employee</span>
           </button>
+        </div>
+      </div>
+
+      {/* 9:00 AM & 9:30 AM Real-time Policy Notice Card */}
+      <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center space-x-3">
+          <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl">
+            <Bell className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+              Mandatory Daily Attendance Schedule (9:00 AM & 9:30 AM)
+            </h4>
+            <p className="text-xs text-amber-800 mt-0.5">
+              • <strong>09:00 AM Intimation:</strong> Check and mark attendance (Present / Absent) with automated WhatsApp notice to employee.
+              <br className="hidden sm:inline" /> • <strong>09:30 AM Cutoff:</strong> Unmarked employees are strictly auto-flagged as <strong>ABSENT</strong>.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -477,23 +549,48 @@ const StaffPage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handlePaySalary} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Salary Month
+                </label>
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => {
+                    setMonth(e.target.value);
+                    if (salaryModal) openSalaryModal(salaryModal, e.target.value);
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
               {salaryCalc ? (
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Days in Month:</span>
-                    <span className="font-bold text-slate-700">{salaryCalc.daysInMonth} days</span>
+                    <span className="text-slate-500">Base Salary:</span>
+                    <span className="font-bold text-slate-800">{formatINR((salaryCalc.baseSalaryRupees || 0) * 100)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Present (Full + Half):</span>
+                    <span className="text-slate-500">Days Present (Full + Half):</span>
                     <span className="font-bold text-emerald-600">{salaryCalc.presentDays} days</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Unpaid Absences:</span>
+                    <span className="text-slate-500">Days Absent:</span>
                     <span className="font-bold text-rose-600">{salaryCalc.absentDays} days</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Gross Attendance-Prorated:</span>
+                    <span className="font-bold text-slate-800">{formatINR((salaryCalc.calculatedSalaryRupees || 0) * 100)}</span>
+                  </div>
+                  {salaryCalc.advanceRupees > 0 && (
+                    <div className="flex justify-between text-rose-600 font-semibold">
+                      <span>Deducted Advance Salary:</span>
+                      <span>- {formatINR(salaryCalc.advanceRupees * 100)}</span>
+                    </div>
+                  )}
                   <div className="pt-2 border-t border-slate-200 flex justify-between text-sm">
                     <span className="font-bold text-slate-800">Net Calculated Pay:</span>
-                    <span className="font-black text-emerald-700">₹{salaryCalc.payableRupees.toLocaleString('en-IN')}</span>
+                    <span className="font-black text-emerald-700">₹{Number(salaryCalc.payableRupees || 0).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               ) : (
@@ -690,6 +787,55 @@ const StaffPage: React.FC = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WHATSAPP CONFIRMATION POPUP MODAL */}
+      {whatsAppModalStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-emerald-100 rounded-xl text-emerald-700">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-emerald-950">WhatsApp Notification</h3>
+                  <p className="text-xs text-emerald-700">{whatsAppModalStaff.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setWhatsAppModalStaff(null)}>
+                <X className="w-5 h-5 text-emerald-800" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                <span className="font-bold text-slate-500 uppercase text-[10px]">Auto-Generated Message:</span>
+                <p className="text-slate-800 whitespace-pre-line font-mono text-[11px] bg-white p-3 rounded-lg border border-slate-100">
+                  {whatsAppModalStaff.message}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWhatsAppModalStaff(null)}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                >
+                  Dismiss
+                </button>
+                <a
+                  href={whatsAppModalStaff.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send on WhatsApp</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
