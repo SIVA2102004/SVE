@@ -42,6 +42,8 @@ import {
   getPaymentAccounts,
   getInsurancePolicies,
   createInsurancePolicy,
+  updateInsurancePolicy,
+  deleteInsurancePolicy,
   getChitSchemes,
   createChitScheme,
   payChitInstallment,
@@ -131,6 +133,9 @@ router.post('/staff/attendance-timer-check', requireRoles('OWNER', 'MANAGER'), r
 // 7. Insurance & Reminders
 router.get('/insurance', getInsurancePolicies as any);
 router.post('/insurance', requireRoles('OWNER', 'MANAGER'), createInsurancePolicy as any);
+router.put('/insurance/:id', requireRoles('OWNER', 'MANAGER'), updateInsurancePolicy as any);
+router.patch('/insurance/:id', requireRoles('OWNER', 'MANAGER'), updateInsurancePolicy as any);
+router.delete('/insurance/:id', requireRoles('OWNER', 'MANAGER'), deleteInsurancePolicy as any);
 router.get('/reminders', getReminders as any);
 router.post('/reminders', createReminder as any);
 router.patch('/reminders/:id/complete', createReminder as any);

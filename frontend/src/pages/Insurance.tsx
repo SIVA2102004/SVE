@@ -16,6 +16,8 @@ import {
   FileText,
   Clock,
   CheckCircle,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 
 interface InsurancePolicy {
@@ -43,6 +45,7 @@ const Insurance: React.FC = () => {
   const [policies, setPolicies] = useState<InsurancePolicy[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<InsurancePolicy | null>(null);
   const [payModalPolicy, setPayModalPolicy] = useState<InsurancePolicy | null>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAcc, setSelectedAcc] = useState('');
@@ -100,11 +103,70 @@ const Insurance: React.FC = () => {
     if (lastEvent) fetchPolicies();
   }, [lastEvent]);
 
-  const handleCreatePolicy = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setEditingPolicy(null);
+    setPolicyName('');
+    setCompany('');
+    setPolicyNumber('');
+    setPolicyHolder('');
+    setNominee('');
+    setInsuranceType('Health Insurance');
+    setSumAssuredRupees('');
+    setPremiumAmountRupees('');
+    setFrequency('YEARLY');
+    setStartDate('');
+    setExpiryDate('');
+    setMaturityDate('');
+    setIntimationDate('');
+    setRemindDays('7');
+    setVehicleOrAsset('');
+    setNotes('');
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setFormScope(scope === 'OVERALL' ? 'PERSONAL' : (scope as 'PERSONAL' | 'FAMILY' | 'BUSINESS'));
+    setModalOpen(true);
+  };
+
+  const openEditModal = (p: InsurancePolicy) => {
+    setEditingPolicy(p);
+    setFormScope(p.scope as any);
+    setPolicyName(p.policyName || '');
+    setCompany(p.company || '');
+    setPolicyNumber(p.policyNumber || '');
+    setPolicyHolder(p.policyHolder || '');
+    setNominee(p.nominee || '');
+    setInsuranceType(p.insuranceType || 'Health Insurance');
+    setSumAssuredRupees(p.sumAssured ? (p.sumAssured / 100).toString() : '');
+    setPremiumAmountRupees(p.premiumAmount ? (p.premiumAmount / 100).toString() : '');
+    setFrequency(p.frequency || 'YEARLY');
+    setStartDate(p.startDate ? new Date(p.startDate).toISOString().split('T')[0] : '');
+    setExpiryDate(p.expiryDate ? new Date(p.expiryDate).toISOString().split('T')[0] : '');
+    setMaturityDate(p.maturityDate ? new Date(p.maturityDate).toISOString().split('T')[0] : '');
+    setIntimationDate('');
+    setVehicleOrAsset(p.vehicleOrAsset || '');
+    setNotes(p.notes || '');
+    setModalOpen(true);
+  };
+
+  const handleDeletePolicy = async (p: InsurancePolicy) => {
+    if (!window.confirm(`Are you sure you want to delete "${p.policyName}" (${p.policyNumber})? This will also remove any linked reminders.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/insurance/${p.id}`);
+      await fetchPolicies();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete insurance policy');
+    }
+  };
+
+  const handleSavePolicy = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/insurance', {
+      const payload = {
         scope: formScope,
         policyName,
         company,
@@ -122,25 +184,19 @@ const Insurance: React.FC = () => {
         remindDays: parseInt(remindDays) || 7,
         vehicleOrAsset: vehicleOrAsset || undefined,
         notes: notes || undefined,
-      });
+      };
+
+      if (editingPolicy) {
+        await api.put(`/insurance/${editingPolicy.id}`, payload);
+      } else {
+        await api.post('/insurance', payload);
+      }
+
       setModalOpen(false);
-      // Reset form
-      setPolicyName('');
-      setCompany('');
-      setPolicyNumber('');
-      setPolicyHolder('');
-      setNominee('');
-      setSumAssuredRupees('');
-      setPremiumAmountRupees('');
-      setStartDate('');
-      setExpiryDate('');
-      setMaturityDate('');
-      setIntimationDate('');
-      setVehicleOrAsset('');
-      setNotes('');
+      resetForm();
       await fetchPolicies();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to create insurance policy');
+      alert(err.response?.data?.message || 'Failed to save insurance policy');
     } finally {
       setSaving(false);
     }
@@ -199,7 +255,7 @@ const Insurance: React.FC = () => {
             <p className="text-base font-black text-indigo-600">{formatINR(totalAnnualPremium)}</p>
           </div>
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={openCreateModal}
             className="flex items-center space-x-1.5 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -249,17 +305,33 @@ const Insurance: React.FC = () => {
                       <h3 className="font-bold text-slate-800 text-base mt-0.5">{p.policyName}</h3>
                       <p className="text-xs font-semibold text-slate-600">{p.company}</p>
                     </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        p.scope === 'PERSONAL'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : p.scope === 'FAMILY'
-                          ? 'bg-purple-50 text-purple-700'
-                          : 'bg-brand-50 text-brand-700'
-                      }`}
-                    >
-                      {p.scope}
-                    </span>
+                    <div className="flex items-center space-x-1.5">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          p.scope === 'PERSONAL'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : p.scope === 'FAMILY'
+                            ? 'bg-purple-50 text-purple-700'
+                            : 'bg-brand-50 text-brand-700'
+                        }`}
+                      >
+                        {p.scope}
+                      </span>
+                      <button
+                        onClick={() => openEditModal(p)}
+                        title="Edit Policy"
+                        className="p-1 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePolicy(p)}
+                        title="Delete Policy"
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-3 p-3 bg-slate-50 rounded-xl space-y-1 text-xs">
@@ -345,17 +417,19 @@ const Insurance: React.FC = () => {
         )}
       </div>
 
-      {/* CREATE POLICY MODAL */}
+      {/* CREATE / EDIT POLICY MODAL */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-base text-slate-800">Add Insurance Policy</h3>
-              <button onClick={() => setModalOpen(false)}>
+              <h3 className="font-bold text-base text-slate-800">
+                {editingPolicy ? 'Edit Insurance Policy' : 'Add Insurance Policy'}
+              </h3>
+              <button onClick={() => { setModalOpen(false); resetForm(); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-            <form onSubmit={handleCreatePolicy} className="p-6 space-y-3.5 overflow-y-auto flex-1">
+            <form onSubmit={handleSavePolicy} className="p-6 space-y-3.5 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
@@ -594,7 +668,7 @@ const Insurance: React.FC = () => {
                 disabled={saving}
                 className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs disabled:opacity-50 shadow-md transition-all mt-2"
               >
-                {saving ? 'Saving...' : 'Save Policy'}
+                {saving ? 'Saving...' : editingPolicy ? 'Update Policy' : 'Save Policy'}
               </button>
             </form>
           </div>

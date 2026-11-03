@@ -97,6 +97,95 @@ export const createInsurancePolicy = async (req: AuthRequest, res: Response) => 
   }
 };
 
+export const updateInsurancePolicy = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      scope,
+      insuranceType,
+      policyName,
+      company,
+      policyNumber,
+      policyHolder,
+      nominee,
+      sumAssuredRupees,
+      premiumAmountRupees,
+      frequency,
+      startDate,
+      expiryDate,
+      maturityDate,
+      remindDays,
+      status,
+      vehicleOrAsset,
+      notes,
+    } = req.body;
+
+    const data: any = {};
+    if (scope !== undefined) data.scope = scope;
+    if (insuranceType !== undefined) data.insuranceType = insuranceType;
+    if (policyName !== undefined) data.policyName = policyName;
+    if (company !== undefined) data.company = company;
+    if (policyNumber !== undefined) data.policyNumber = policyNumber;
+    if (policyHolder !== undefined) data.policyHolder = policyHolder || null;
+    if (nominee !== undefined) data.nominee = nominee || null;
+    if (sumAssuredRupees !== undefined) data.sumAssured = rupeesToPaise(sumAssuredRupees);
+    if (premiumAmountRupees !== undefined) data.premiumAmount = rupeesToPaise(premiumAmountRupees);
+    if (frequency !== undefined) data.frequency = frequency;
+    if (startDate !== undefined) data.startDate = new Date(startDate);
+    if (expiryDate !== undefined) {
+      data.expiryDate = new Date(expiryDate);
+      data.nextPaymentDate = new Date(expiryDate);
+    }
+    if (maturityDate !== undefined) data.maturityDate = maturityDate ? new Date(maturityDate) : null;
+    if (remindDays !== undefined) data.reminderDays = parseInt(String(remindDays)) || 7;
+    if (status !== undefined) data.status = status;
+    if (vehicleOrAsset !== undefined) data.vehicleOrAsset = vehicleOrAsset || null;
+    if (notes !== undefined) data.notes = notes || null;
+
+    const policy = await prisma.insurancePolicy.update({
+      where: { id },
+      data,
+    });
+
+    // Update associated reminders if exists
+    if (data.expiryDate || data.premiumAmount || data.policyName) {
+      await prisma.reminder.updateMany({
+        where: { referenceId: id },
+        data: {
+          title: `Insurance Premium Due: ${policy.policyName} (${policy.company})`,
+          dueDate: policy.expiryDate,
+          amount: policy.premiumAmount,
+        },
+      });
+    }
+
+    broadcastEvent('insurance_updated', policy);
+    res.json({ success: true, policy });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteInsurancePolicy = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Delete associated reminders first
+    await prisma.reminder.deleteMany({
+      where: { referenceId: id },
+    });
+
+    const deleted = await prisma.insurancePolicy.delete({
+      where: { id },
+    });
+
+    broadcastEvent('insurance_deleted', { id });
+    res.json({ success: true, message: 'Insurance policy deleted successfully', id: deleted.id });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const getReminders = async (req: AuthRequest, res: Response) => {
   try {
     const reminders = await prisma.reminder.findMany({
