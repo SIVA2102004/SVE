@@ -27,6 +27,11 @@ const Loans: React.FC = () => {
   const [principalRupees, setPrincipalRupees] = useState('');
   const [interestRate, setInterestRate] = useState('11.5');
   const [tenureMonths, setTenureMonths] = useState('36');
+  const [frequency, setFrequency] = useState('MONTHLY');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [firstEmiDate, setFirstEmiDate] = useState('');
+  const [intimationDate, setIntimationDate] = useState('');
+  const [remindDays, setRemindDays] = useState('3');
   const [dueDayOfMonth, setDueDayOfMonth] = useState('5');
 
   // Pay EMI form
@@ -62,20 +67,28 @@ const Loans: React.FC = () => {
     setSaving(true);
     try {
       await api.post('/loans', {
+        loanName: `${bankName} (${loanType})`,
+        lender: bankName,
         bankName,
         loanType,
         principalAmountRupees: parseFloat(principalRupees),
         interestRate: parseFloat(interestRate),
         tenureMonths: parseInt(tenureMonths, 10),
-        startDate: new Date().toISOString().split('T')[0],
+        frequency,
+        startDate: startDate || new Date().toISOString().split('T')[0],
+        firstEmiDate: firstEmiDate || undefined,
+        intimationDate: intimationDate || undefined,
+        remindDays: parseInt(remindDays, 10) || 3,
         dueDayOfMonth: parseInt(dueDayOfMonth, 10),
       });
       setNewLoanModal(false);
       setBankName('');
       setPrincipalRupees('');
+      setFirstEmiDate('');
+      setIntimationDate('');
       await fetchLoans();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to create loan');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to create loan');
     } finally {
       setSaving(false);
     }
@@ -366,7 +379,7 @@ const Loans: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Tenure (Months)
+                    Tenure (Total Months) *
                   </label>
                   <input
                     type="number"
@@ -375,6 +388,80 @@ const Loans: React.FC = () => {
                     onChange={(e) => setTenureMonths(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Repayment Frequency / Interval *
+                </label>
+                <select
+                  value={frequency}
+                  onChange={(e) => setFrequency(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="MONTHLY">Every 1 Month (Monthly EMI)</option>
+                  <option value="TWO_MONTHS">Every 2 Months (Bi-Monthly)</option>
+                  <option value="QUARTERLY">Every 3 Months (Quarterly)</option>
+                  <option value="HALF_YEARLY">Every 6 Months (Half Yearly)</option>
+                  <option value="YEARLY">Every 1 Year (Yearly)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Loan Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    First EMI Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={firstEmiDate}
+                    onChange={(e) => setFirstEmiDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              {/* Intimation & Reminder Notice Settings */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-amber-50/70 rounded-xl border border-amber-200/80">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-900 mb-1">
+                    First Intimation Date
+                  </label>
+                  <input
+                    type="date"
+                    value={intimationDate}
+                    onChange={(e) => setIntimationDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="text-[10px] text-amber-700 mt-0.5 block">Start reminding before payment date</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-900 mb-1">
+                    Reminder Notice Advance
+                  </label>
+                  <select
+                    value={remindDays}
+                    onChange={(e) => setRemindDays(e.target.value)}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-amber-500 font-semibold"
+                  >
+                    <option value="3">3 Days Before Due Date</option>
+                    <option value="5">5 Days Before Due Date</option>
+                    <option value="7">7 Days Before Due Date (1 Week)</option>
+                    <option value="15">15 Days Before Due Date</option>
+                  </select>
+                  <span className="text-[10px] text-amber-700 mt-0.5 block">Pre-due notification alert interval</span>
                 </div>
               </div>
               <button

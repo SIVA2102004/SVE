@@ -66,6 +66,8 @@ const Insurance: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [maturityDate, setMaturityDate] = useState('');
+  const [intimationDate, setIntimationDate] = useState('');
+  const [remindDays, setRemindDays] = useState('7');
   const [vehicleOrAsset, setVehicleOrAsset] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -116,6 +118,8 @@ const Insurance: React.FC = () => {
         startDate: startDate || undefined,
         expiryDate,
         maturityDate: maturityDate || undefined,
+        intimationDate: intimationDate || undefined,
+        remindDays: parseInt(remindDays) || 7,
         vehicleOrAsset: vehicleOrAsset || undefined,
         notes: notes || undefined,
       });
@@ -131,6 +135,7 @@ const Insurance: React.FC = () => {
       setStartDate('');
       setExpiryDate('');
       setMaturityDate('');
+      setIntimationDate('');
       setVehicleOrAsset('');
       setNotes('');
       await fetchPolicies();
@@ -472,18 +477,19 @@ const Insurance: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Payment Frequency
+                    Payment Cycle / Frequency *
                   </label>
                   <select
                     value={frequency}
                     onChange={(e) => setFrequency(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-500"
                   >
-                    <option value="YEARLY">Yearly</option>
-                    <option value="HALF_YEARLY">Half Yearly (6 Months)</option>
-                    <option value="QUARTERLY">Quarterly (3 Months)</option>
-                    <option value="MONTHLY">Monthly</option>
-                    <option value="SINGLE">Single One-Time</option>
+                    <option value="MONTHLY">Every 1 Month (Monthly)</option>
+                    <option value="TWO_MONTHS">Every 2 Months (Bi-Monthly)</option>
+                    <option value="QUARTERLY">Every 3 Months (Quarterly)</option>
+                    <option value="HALF_YEARLY">Every 6 Months (Half Yearly)</option>
+                    <option value="YEARLY">Every 1 Year (Yearly)</option>
+                    <option value="SINGLE">Single One-Time Payment</option>
                   </select>
                 </div>
               </div>
@@ -536,6 +542,37 @@ const Insurance: React.FC = () => {
                     onChange={(e) => setMaturityDate(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-amber-50/70 rounded-xl border border-amber-200/80">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-900 mb-1">
+                    First Intimation / Reminder Date
+                  </label>
+                  <input
+                    type="date"
+                    value={intimationDate}
+                    onChange={(e) => setIntimationDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="text-[10px] text-amber-700 mt-0.5 block">When to start alerting (e.g. 15 days before renewal)</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-900 mb-1">
+                    Reminder Notice Advance
+                  </label>
+                  <select
+                    value={remindDays}
+                    onChange={(e) => setRemindDays(e.target.value)}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-amber-500 font-semibold"
+                  >
+                    <option value="3">3 Days Before Due Date</option>
+                    <option value="7">7 Days Before Due Date (1 Week)</option>
+                    <option value="15">15 Days Before Due Date</option>
+                    <option value="30">30 Days Before Due Date (1 Month)</option>
+                  </select>
+                  <span className="text-[10px] text-amber-700 mt-0.5 block">Pre-due notification alert interval</span>
                 </div>
               </div>
 

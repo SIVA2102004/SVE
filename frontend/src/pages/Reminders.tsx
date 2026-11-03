@@ -8,11 +8,14 @@ const Reminders: React.FC = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [filterType, setFilterType] = useState<'ALL' | 'PAY' | 'RECEIVE'>('ALL');
 
   // Form State
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [intimationDate, setIntimationDate] = useState('');
+  const [reminderCategory, setReminderCategory] = useState<'PAY' | 'RECEIVE'>('PAY');
   const [amountRupees, setAmountRupees] = useState('');
   const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('HIGH');
   const [saving, setSaving] = useState(false);
@@ -45,15 +48,17 @@ const Reminders: React.FC = () => {
     try {
       await api.post('/reminders', {
         title,
-        description,
-        dueDate,
+        description: description ? `[${reminderCategory === 'PAY' ? 'TO PAY' : 'TO RECEIVE'}] ${description}` : `[${reminderCategory === 'PAY' ? 'TO PAY' : 'TO RECEIVE'}]`,
+        dueDate: dueDate,
         amountRupees: amountRupees ? parseFloat(amountRupees) : undefined,
+        type: reminderCategory === 'PAY' ? 'DEALER_DUE' : 'CUSTOMER_DUE',
         priority,
       });
       setModalOpen(false);
       setTitle('');
       setDescription('');
       setDueDate('');
+      setIntimationDate('');
       setAmountRupees('');
       await fetchReminders();
     } catch (err: any) {
@@ -77,9 +82,9 @@ const Reminders: React.FC = () => {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Payment & Tax Reminders</h2>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Payment & Receipt Reminders</h2>
           <p className="text-xs text-slate-500 font-medium mt-1">
-            Never miss GST filings, supplier bill cutoffs, insurance renewals, or rent
+            Track amounts to Pay and Receive across loans, insurance, supplier dues, customers, and rent
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -91,6 +96,34 @@ const Reminders: React.FC = () => {
             <span>Add Reminder</span>
           </button>
         </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex items-center space-x-2 bg-slate-100/80 p-1 rounded-xl max-w-md">
+        <button
+          onClick={() => setFilterType('ALL')}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+            filterType === 'ALL' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          All ({reminders.length})
+        </button>
+        <button
+          onClick={() => setFilterType('PAY')}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+            filterType === 'PAY' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-500 hover:text-rose-700'
+          }`}
+        >
+          To Pay ({reminders.filter((r) => !(r.description && r.description.includes('[TO RECEIVE]')) && r.type !== 'CUSTOMER_DUE').length})
+        </button>
+        <button
+          onClick={() => setFilterType('RECEIVE')}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+            filterType === 'RECEIVE' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-emerald-700'
+          }`}
+        >
+          To Receive ({reminders.filter((r) => (r.description && r.description.includes('[TO RECEIVE]')) || r.type === 'CUSTOMER_DUE').length})
+        </button>
       </div>
 
       {/* Reminders List */}
@@ -105,7 +138,13 @@ const Reminders: React.FC = () => {
             No active reminders. You're completely up to date!
           </div>
         ) : (
-          reminders.map((r) => (
+          reminders
+            .filter((r) => {
+              if (filterType === 'ALL') return true;
+              const isReceive = (r.description && r.description.includes('[TO RECEIVE]')) || r.type === 'CUSTOMER_DUE';
+              return filterType === 'RECEIVE' ? isReceive : !isReceive;
+            })
+            .map((r) => (
             <div
               key={r.id}
               className={`p-4 rounded-2xl border transition-all flex items-center justify-between ${
@@ -149,7 +188,16 @@ const Reminders: React.FC = () => {
 
               <div className="flex items-center space-x-4">
                 {r.amount ? (
-                  <span className="font-black text-rose-600 text-sm">{formatINR(r.amount)}</span>
+                  <span
+                    className={`font-black text-sm ${
+                      (r.description && r.description.includes('[TO RECEIVE]')) || r.type === 'CUSTOMER_DUE'
+                        ? 'text-emerald-600'
+                        : 'text-rose-600'
+                    }`}
+                  >
+                    {(r.description && r.description.includes('[TO RECEIVE]')) || r.type === 'CUSTOMER_DUE' ? '+ ' : '- '}
+                    {formatINR(r.amount)}
+                  </span>
                 ) : null}
                 {r.status === 'PENDING' ? (
                   <button
@@ -180,13 +228,43 @@ const Reminders: React.FC = () => {
             </div>
             <form onSubmit={handleCreateReminder} className="p-6 space-y-4">
               <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Reminder Type *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReminderCategory('PAY')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                      reminderCategory === 'PAY'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    🔴 To Pay (Outflow / Bill / Due)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReminderCategory('RECEIVE')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                      reminderCategory === 'RECEIVE'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    🟢 To Receive (Inflow / Pending)
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
                   Title *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. GST-3B Filing Deadline"
+                  placeholder={reminderCategory === 'PAY' ? 'e.g. Shop Rent / Dealer Payment' : 'e.g. Collect pending balance from Customer'}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"

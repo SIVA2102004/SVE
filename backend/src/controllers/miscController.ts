@@ -44,6 +44,8 @@ export const createInsurancePolicy = async (req: AuthRequest, res: Response) => 
       startDate,
       expiryDate,
       maturityDate,
+      intimationDate,
+      remindDays = 7,
       vehicleOrAsset,
       notes,
     } = req.body;
@@ -67,9 +69,24 @@ export const createInsurancePolicy = async (req: AuthRequest, res: Response) => 
         expiryDate: new Date(expiryDate),
         maturityDate: maturityDate ? new Date(maturityDate) : null,
         nextPaymentDate: new Date(expiryDate),
+        reminderDays: parseInt(String(remindDays)) || 7,
         vehicleOrAsset: vehicleOrAsset || null,
         notes: notes || null,
         status: 'ACTIVE',
+      },
+    });
+
+    // Automatically create a Reminder notification for premium renewal & intimation
+    const reminderDueDate = intimationDate ? new Date(intimationDate) : new Date(expiryDate);
+    await prisma.reminder.create({
+      data: {
+        title: `Insurance Premium Due: ${policyName} (${company})`,
+        description: `Policy #${policyNumber} renewal premium of ₹${parseFloat(premiumAmountRupees).toLocaleString('en-IN')}. Frequency: ${frequency}.`,
+        dueDate: reminderDueDate,
+        amount: premiumPaise,
+        type: 'INSURANCE_EXPIRY',
+        referenceId: policy.id,
+        remindDays: parseInt(String(remindDays)) || 7,
       },
     });
 

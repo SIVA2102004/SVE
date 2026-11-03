@@ -29,7 +29,12 @@ export const createLoan = async (req: AuthRequest, res: Response) => {
       principalAmountRupees,
       interestRate = '10.5',
       tenureMonths = '36',
+      frequency = 'MONTHLY', // MONTHLY (1), BI_MONTHLY (2), QUARTERLY (3), HALF_YEARLY (6), YEARLY (12)
+      intervalMonths = 1,
       startDate,
+      firstEmiDate,
+      intimationDate,
+      remindDays = 3,
       accountNumberMasked,
       notes,
     } = req.body;
@@ -45,6 +50,17 @@ export const createLoan = async (req: AuthRequest, res: Response) => {
     const { emiPaise } = calculateEMI(principalPaise, rate, tenure);
     const start = startDate ? new Date(startDate) : new Date();
 
+    // Determine interval step in months
+    let stepMonths = parseInt(String(intervalMonths)) || 1;
+    if (frequency === 'TWO_MONTHS' || frequency === 'BI_MONTHLY') stepMonths = 2;
+    else if (frequency === 'QUARTERLY' || frequency === 'THREE_MONTHS') stepMonths = 3;
+    else if (frequency === 'HALF_YEARLY' || frequency === 'SIX_MONTHS') stepMonths = 6;
+    else if (frequency === 'YEARLY') stepMonths = 12;
+
+    const initialEmiDate = firstEmiDate
+      ? new Date(firstEmiDate)
+      : new Date(start.getTime() + stepMonths * 30 * 24 * 60 * 60 * 1000);
+
     const loan = await prisma.$transaction(async (tx) => {
       const newLoan = await tx.loan.create({
         data: {
@@ -55,25 +71,26 @@ export const createLoan = async (req: AuthRequest, res: Response) => {
           tenureMonths: tenure,
           emiAmount: emiPaise,
           startDate: start,
-          nextEmiDate: new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000),
+          nextEmiDate: initialEmiDate,
           remainingAmount: principalPaise,
           accountNumberMasked: accountNumberMasked || null,
-          notes: notes || null,
+          notes: notes ? `${notes} | Frequency: Every ${stepMonths} month(s)` : `Frequency: Every ${stepMonths} month(s)`,
         },
       });
 
-      // Generate Amortization Schedule
+      // Generate Amortization Schedule based on interval frequency
       let curPrincipal = principalPaise;
-      const monthlyRate = rate > 0 ? rate / (12 * 100) : 0;
+      const monthlyRate = rate > 0 ? (rate * stepMonths) / (12 * 100) : 0;
+      const totalInstallments = Math.max(1, Math.ceil(tenure / stepMonths));
 
-      for (let i = 1; i <= tenure; i++) {
+      for (let i = 1; i <= totalInstallments; i++) {
         const dueDate = new Date(start);
-        dueDate.setMonth(dueDate.getMonth() + i);
+        dueDate.setMonth(dueDate.getMonth() + i * stepMonths);
 
         let interestComponent = Math.round(curPrincipal * monthlyRate);
         let principalComponent = emiPaise - interestComponent;
 
-        if (i === tenure || principalComponent > curPrincipal) {
+        if (i === totalInstallments || principalComponent > curPrincipal) {
           principalComponent = curPrincipal;
           interestComponent = Math.max(0, emiPaise - principalComponent);
         }
@@ -96,6 +113,20 @@ export const createLoan = async (req: AuthRequest, res: Response) => {
         curPrincipal = remainingAfter;
       }
 
+      // Auto-schedule Reminder notification for loan EMI
+      const reminderDueDate = intimationDate ? new Date(intimationDate) : initialEmiDate;
+      await tx.reminder.create({
+        data: {
+          title: `Loan EMI Due: ${loanName} (${lender})`,
+          description: `Scheduled EMI payment of ₹${(emiPaise / 100).toLocaleString('en-IN')}. Repayment cycle: Every ${stepMonths} month(s).`,
+          dueDate: reminderDueDate,
+          amount: emiPaise,
+          type: 'EMI_DUE',
+          referenceId: newLoan.id,
+          remindDays: parseInt(String(remindDays)) || 3,
+        },
+      });
+
       await tx.auditLog.create({
         data: {
           userId: req.user!.id,
@@ -104,7 +135,7 @@ export const createLoan = async (req: AuthRequest, res: Response) => {
           entityType: 'LOAN',
           entityId: newLoan.id,
           amount: principalPaise,
-          details: JSON.stringify({ loanName, lender, emiPaise }),
+          details: JSON.stringify({ loanName, lender, emiPaise, stepMonths }),
         },
       });
 

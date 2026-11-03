@@ -163,6 +163,9 @@ export interface Reminder {
   description?: string;
   dueDate: string;
   amount?: number;
+  type?: string;
+  referenceId?: string;
+  remindDays?: number;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   status: 'PENDING' | 'COMPLETED';
 }

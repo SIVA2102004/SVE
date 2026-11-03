@@ -104,4 +104,37 @@ export const initAttendanceScheduler = () => {
   );
 
   console.log('✅ Staff Attendance 9:00 AM & 9:30 AM Schedulers initialized (Asia/Kolkata timezone)');
+
+  // 3. Daily 8:30 AM IST Cron: Check and broadcast all upcoming/due Pay & Receive Reminders
+  cron.schedule(
+    '30 8 * * *',
+    async () => {
+      console.log('⏰ [Reminders Cron 8:30 AM] Scanning pending payment & receipt reminders');
+      try {
+        const now = new Date();
+        const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        const dueReminders = await prisma.reminder.findMany({
+          where: {
+            isCompleted: false,
+            dueDate: { lte: next7Days },
+          },
+          orderBy: { dueDate: 'asc' },
+        });
+
+        if (dueReminders.length > 0) {
+          broadcastEvent('daily_payment_reminders', {
+            count: dueReminders.length,
+            reminders: dueReminders,
+            message: `🔔 You have ${dueReminders.length} upcoming/due payment & receipt reminder(s).`,
+          });
+        }
+      } catch (err) {
+        console.error('Error in Daily Reminders Cron:', err);
+      }
+    },
+    {
+      timezone: 'Asia/Kolkata',
+    }
+  );
 };
