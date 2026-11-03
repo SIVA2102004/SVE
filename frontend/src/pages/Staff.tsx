@@ -571,6 +571,10 @@ const StaffPage: React.FC = () => {
                     <span className="font-bold text-slate-800">{formatINR((salaryCalc.baseSalaryRupees || 0) * 100)}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-slate-500">Daily Rate ({salaryCalc.daysInMonth} days in month):</span>
+                    <span className="font-semibold text-slate-700">₹{(salaryCalc.dailyRateRupees || ((salaryCalc.baseSalaryRupees || 0) / (salaryCalc.daysInMonth || 30))).toFixed(2)} / day</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-slate-500">Days Present (Full + Half):</span>
                     <span className="font-bold text-emerald-600">{salaryCalc.presentDays} days</span>
                   </div>
@@ -578,19 +582,21 @@ const StaffPage: React.FC = () => {
                     <span className="text-slate-500">Days Absent:</span>
                     <span className="font-bold text-rose-600">{salaryCalc.absentDays} days</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Gross Attendance-Prorated:</span>
-                    <span className="font-bold text-slate-800">{formatINR((salaryCalc.calculatedSalaryRupees || 0) * 100)}</span>
-                  </div>
-                  {salaryCalc.advanceRupees > 0 && (
+                  {salaryCalc.absentDays > 0 && (
                     <div className="flex justify-between text-rose-600 font-semibold">
+                      <span>Absent Days Deduction:</span>
+                      <span>- ₹{Number(salaryCalc.absentDeductionRupees || (salaryCalc.absentDays * (salaryCalc.dailyRateRupees || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  {salaryCalc.advanceRupees > 0 && (
+                    <div className="flex justify-between text-amber-700 font-semibold">
                       <span>Deducted Advance Salary:</span>
                       <span>- {formatINR(salaryCalc.advanceRupees * 100)}</span>
                     </div>
                   )}
                   <div className="pt-2 border-t border-slate-200 flex justify-between text-sm">
                     <span className="font-bold text-slate-800">Net Calculated Pay:</span>
-                    <span className="font-black text-emerald-700">₹{Number(salaryCalc.payableRupees || 0).toLocaleString('en-IN')}</span>
+                    <span className="font-black text-emerald-700">₹{Number(salaryCalc.payableRupees || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               ) : (

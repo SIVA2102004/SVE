@@ -216,18 +216,18 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     let baseSalaryPaise = staff.monthlySalary;
     let calculatedSalaryPaise = baseSalaryPaise;
 
+    // Daily rate based on actual days in current month (e.g., 30 for Nov, 31 for Dec)
+    const dailyRatePaise = Math.round(baseSalaryPaise / totalDaysInMonth);
+
     if (staff.salaryType === 'DAILY') {
       calculatedSalaryPaise = Math.round(effectivePresentDays * staff.dailyWage);
     } else {
-      // Monthly salary prorated based on attendance
-      // If attendance was recorded, prorate based on 26 working days standard
-      if (monthAttendance.length > 0) {
-        calculatedSalaryPaise = Math.round(
-          (baseSalaryPaise / workingDaysStandard) * Math.min(workingDaysStandard, effectivePresentDays)
-        );
-      } else {
-        calculatedSalaryPaise = baseSalaryPaise;
-      }
+      // Option B: Monthly base salary minus unworked absent days
+      // Effective absent penalty = full absent days + half days * 0.5
+      const effectiveAbsentDays = absentDays + halfDays * 0.5;
+      const absentDeductionPaise = Math.round(effectiveAbsentDays * dailyRatePaise);
+
+      calculatedSalaryPaise = Math.max(0, baseSalaryPaise - absentDeductionPaise);
     }
 
     // Check existing advance already taken for this month in salaryRecord
@@ -249,6 +249,9 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
 
     // If it's a GET request, just return the calculation breakdown
     if (req.method === 'GET') {
+      const effectiveAbsentDays = absentDays + halfDays * 0.5;
+      const absentDeductionRupees = Math.round(effectiveAbsentDays * dailyRatePaise) / 100;
+
       return res.json({
         success: true,
         staffId,
@@ -256,8 +259,11 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
         month: m,
         year: y,
         daysInMonth: totalDaysInMonth,
+        dailyRateRupees: dailyRatePaise / 100,
         presentDays: effectivePresentDays,
         absentDays,
+        effectiveAbsentDays,
+        absentDeductionRupees,
         baseSalaryRupees: baseSalaryPaise / 100,
         calculatedSalaryRupees: calculatedSalaryPaise / 100,
         advanceRupees: totalAdvancePaise / 100,
