@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { prisma } from '../utils/prisma.js';
+import { getTodayIST } from '../utils/date.js';
 import { broadcastEvent } from '../websocket/socket.js';
 
 /**
@@ -20,8 +21,7 @@ export const initAttendanceScheduler = () => {
     async () => {
       console.log('⏰ [Attendance Cron 9:00 AM] Triggering 9:00 AM Attendance Check & Notification');
       try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = getTodayIST();
 
         const activeStaff = await prisma.staff.findMany({
           where: { status: 'ACTIVE' },
@@ -56,8 +56,7 @@ export const initAttendanceScheduler = () => {
     async () => {
       console.log('⏰ [Attendance Cron 9:30 AM] Auto-marking unrecorded staff as ABSENT');
       try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = getTodayIST();
 
         const activeStaff = await prisma.staff.findMany({
           where: { status: 'ACTIVE' },

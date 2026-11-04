@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 import { formatINR, formatDate } from '../utils/formatters';
 import { Staff } from '../types';
+import { useSocket } from '../context/SocketContext';
 import {
   UserCheck,
   Calendar,
@@ -53,6 +54,7 @@ const StaffPage: React.FC = () => {
   const [whatsAppModalStaff, setWhatsAppModalStaff] = useState<any>(null);
 
   // 9:00 AM & 9:30 AM Timer & Auto-Intimation State
+  const { lastEvent } = useSocket();
   const [timerAlert, setTimerAlert] = useState<{ type: '9AM' | '930AM'; message: string; count?: number } | null>(null);
   const [autoAbsentRunning, setAutoAbsentRunning] = useState(false);
 
@@ -89,6 +91,33 @@ const StaffPage: React.FC = () => {
   useEffect(() => {
     fetchStaff();
   }, []);
+
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (
+      lastEvent.type === 'ATTENDANCE_MARKED' ||
+      lastEvent.type === 'ATTENDANCE_REMINDER_9AM' ||
+      lastEvent.type === 'ATTENDANCE_AUTO_ABSENT_930AM' ||
+      lastEvent.type === 'staff_created' ||
+      lastEvent.type === 'salary_paid' ||
+      lastEvent.type === 'salary_advance_paid'
+    ) {
+      fetchStaff();
+      if (lastEvent.type === 'ATTENDANCE_REMINDER_9AM') {
+        setTimerAlert({
+          type: '9AM',
+          message: lastEvent.payload?.message || '9:00 AM Attendance Check Intimation',
+          count: lastEvent.payload?.unmarkedStaffCount,
+        });
+      } else if (lastEvent.type === 'ATTENDANCE_AUTO_ABSENT_930AM') {
+        setTimerAlert({
+          type: '930AM',
+          message: lastEvent.payload?.message || '9:30 AM Cutoff: Unmarked staff auto-marked ABSENT',
+          count: lastEvent.payload?.autoMarked?.length,
+        });
+      }
+    }
+  }, [lastEvent]);
 
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,6 +286,33 @@ const StaffPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Real-time 9:00 AM / 9:30 AM Alert Popup Bar */}
+      {timerAlert && (
+        <div className={`p-4 rounded-2xl border flex items-center justify-between shadow-sm animate-fade-in ${
+          timerAlert.type === '930AM'
+            ? 'bg-rose-50 border-rose-200 text-rose-900'
+            : 'bg-amber-50 border-amber-200 text-amber-900'
+        }`}>
+          <div className="flex items-center space-x-3">
+            <div className={`p-2 rounded-xl ${timerAlert.type === '930AM' ? 'bg-rose-200 text-rose-800' : 'bg-amber-200 text-amber-800'}`}>
+              <Clock className="w-5 h-5 animate-spin" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider">
+                {timerAlert.type === '930AM' ? '⚠️ 9:30 AM Cutoff Auto-Absent Executed' : '⏰ 9:00 AM Attendance Reminder'}
+              </p>
+              <p className="text-xs mt-0.5">{timerAlert.message}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setTimerAlert(null)}
+            className="text-xs px-3 py-1.5 bg-white/80 hover:bg-white rounded-lg font-bold border border-slate-200 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* 9:00 AM & 9:30 AM Real-time Policy Notice Card */}
       <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">

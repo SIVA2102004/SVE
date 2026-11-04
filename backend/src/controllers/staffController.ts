@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { rupeesToPaise } from '../utils/currency.js';
+import { getTodayIST, parseDateIST } from '../utils/date.js';
 import { broadcastEvent } from '../websocket/socket.js';
 
 export const getStaff = async (req: AuthRequest, res: Response) => {
@@ -78,8 +79,7 @@ export const markAttendance = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Staff ID and attendance status are required.' });
     }
 
-    const attDate = date ? new Date(date) : new Date();
-    attDate.setHours(0, 0, 0, 0);
+    const attDate = parseDateIST(date);
 
     const staff = await prisma.staff.findUnique({
       where: { id: staffId },
@@ -491,8 +491,7 @@ export const payAdvanceSalary = async (req: AuthRequest, res: Response) => {
 export const runAutoAttendanceCheck = async (req: AuthRequest, res: Response) => {
   try {
     const { action } = req.body; // 'CHECK_9AM' or 'AUTO_ABSENT_930AM'
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayIST();
 
     const activeStaff = await prisma.staff.findMany({
       where: { status: 'ACTIVE' },
