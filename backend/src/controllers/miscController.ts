@@ -90,6 +90,27 @@ export const createInsurancePolicy = async (req: AuthRequest, res: Response) => 
       },
     });
 
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          userEmail: req.user.email,
+          action: 'INSURANCE_CREATED',
+          entityType: 'INSURANCE',
+          entityId: policy.id,
+          amount: premiumPaise,
+          details: JSON.stringify({
+            policyName: policy.policyName,
+            company: policy.company,
+            policyNumber: policy.policyNumber,
+            scope: policy.scope,
+            premiumRupees: premiumAmountRupees,
+            frequency: policy.frequency,
+          }),
+        },
+      });
+    }
+
     broadcastEvent('insurance_created', policy);
     res.status(201).json({ success: true, policy });
   } catch (error: any) {
@@ -159,6 +180,26 @@ export const updateInsurancePolicy = async (req: AuthRequest, res: Response) => 
       });
     }
 
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          userEmail: req.user.email,
+          action: 'INSURANCE_UPDATED',
+          entityType: 'INSURANCE',
+          entityId: policy.id,
+          amount: policy.premiumAmount,
+          details: JSON.stringify({
+            policyName: policy.policyName,
+            company: policy.company,
+            policyNumber: policy.policyNumber,
+            scope: policy.scope,
+            status: policy.status,
+          }),
+        },
+      });
+    }
+
     broadcastEvent('insurance_updated', policy);
     res.json({ success: true, policy });
   } catch (error: any) {
@@ -178,6 +219,25 @@ export const deleteInsurancePolicy = async (req: AuthRequest, res: Response) => 
     const deleted = await prisma.insurancePolicy.delete({
       where: { id },
     });
+
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          userEmail: req.user.email,
+          action: 'INSURANCE_DELETED',
+          entityType: 'INSURANCE',
+          entityId: deleted.id,
+          amount: deleted.premiumAmount,
+          details: JSON.stringify({
+            policyName: deleted.policyName,
+            company: deleted.company,
+            policyNumber: deleted.policyNumber,
+            scope: deleted.scope,
+          }),
+        },
+      });
+    }
 
     broadcastEvent('insurance_deleted', { id });
     res.json({ success: true, message: 'Insurance policy deleted successfully', id: deleted.id });
@@ -325,7 +385,17 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
   try {
     const logs = await prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 200,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
     });
     res.json({ success: true, logs });
   } catch (error: any) {

@@ -15,7 +15,11 @@ const AuditLogs: React.FC = () => {
       const normalized = list.map((l: any) => ({
         ...l,
         entity: l.entityType,
-        user: { fullName: l.userEmail || 'System Admin', role: 'AUDIT' },
+        user: {
+          fullName: l.user?.name || l.userEmail || 'System Admin',
+          role: l.user?.role || 'USER',
+          email: l.user?.email || l.userEmail,
+        },
       }));
       setLogs(normalized);
     } catch (err) {
@@ -62,38 +66,60 @@ const AuditLogs: React.FC = () => {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-bold tracking-wider">
                   <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">User</th>
-                  <th className="py-3 px-4">Action</th>
-                  <th className="py-3 px-4">Entity</th>
-                  <th className="py-3 px-4">Entity ID</th>
+                  <th className="py-3 px-4">Done By (User)</th>
+                  <th className="py-3 px-4">Action Performed</th>
+                  <th className="py-3 px-4">Module / Entity</th>
+                  <th className="py-3 px-4">Details / Summary</th>
                   <th className="py-3 px-4">IP Address</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/70">
-                    <td className="py-3 px-4 text-slate-600 font-mono">
-                      {formatDate(log.createdAt)} {formatTime(log.createdAt)}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-800">
-                      {log.user ? `${log.user.fullName} (${log.user.role})` : 'System'}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                          log.action.includes('VOID') || log.action.includes('FAILED')
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-medium text-slate-600">{log.entity}</td>
-                    <td className="py-3 px-4 font-mono text-slate-400 truncate max-w-xs">{log.entityId}</td>
-                    <td className="py-3 px-4 text-slate-400 font-mono">{log.ipAddress || '127.0.0.1'}</td>
-                  </tr>
-                ))}
+                {logs.map((log) => {
+                  let formattedDetails = '';
+                  if (log.details) {
+                    try {
+                      const parsed = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                      formattedDetails = Object.entries(parsed)
+                        .filter(([k]) => k !== 'userAgent')
+                        .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                        .join(' | ');
+                    } catch {
+                      formattedDetails = String(log.details);
+                    }
+                  }
+
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-50/70">
+                      <td className="py-3 px-4 text-slate-600 font-mono whitespace-nowrap">
+                        {formatDate(log.createdAt)} {formatTime(log.createdAt)}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        <div className="flex flex-col">
+                          <span className="text-slate-900 font-bold">{log.user?.fullName}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{log.user?.email} ({log.user?.role})</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            log.action.includes('VOID') || log.action.includes('FAILED') || log.action.includes('DELETED')
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : log.action.includes('CREATED') || log.action.includes('PAID')
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                          }`}
+                        >
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-700">{log.entity}</td>
+                      <td className="py-3 px-4 text-slate-600 font-mono text-[11px] max-w-sm truncate" title={formattedDetails || log.entityId}>
+                        {formattedDetails || log.entityId}
+                      </td>
+                      <td className="py-3 px-4 text-slate-400 font-mono">{log.ipAddress || '127.0.0.1'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -63,6 +63,25 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          userEmail: req.user.email,
+          action: 'STAFF_CREATED',
+          entityType: 'STAFF',
+          entityId: staffMember.id,
+          amount: monthlyPaise,
+          details: JSON.stringify({
+            name: staffMember.name,
+            mobile: staffMember.mobile,
+            designation,
+            monthlySalaryRupees,
+          }),
+        },
+      });
+    }
+
     broadcastEvent('staff_created', staffMember);
     res.status(201).json({ success: true, staffMember });
   } catch (error: any) {
@@ -105,6 +124,25 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
       where: { id },
       data,
     });
+
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          userEmail: req.user.email,
+          action: 'STAFF_UPDATED',
+          entityType: 'STAFF',
+          entityId: updatedStaff.id,
+          amount: updatedStaff.monthlySalary,
+          details: JSON.stringify({
+            name: updatedStaff.name,
+            mobile: updatedStaff.mobile,
+            status: updatedStaff.status,
+            changes: data,
+          }),
+        },
+      });
+    }
 
     broadcastEvent('staff_updated', updatedStaff);
     res.json({ success: true, staffMember: updatedStaff });
