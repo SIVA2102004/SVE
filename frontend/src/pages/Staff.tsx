@@ -21,12 +21,14 @@ import {
   MessageSquare,
   Bell,
   AlertTriangle,
+  Edit2,
 } from 'lucide-react';
 
 const StaffPage: React.FC = () => {
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [newStaffModal, setNewStaffModal] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [attendanceModal, setAttendanceModal] = useState<Staff | null>(null);
   const [historyModal, setHistoryModal] = useState<Staff | null>(null);
   const [salaryModal, setSalaryModal] = useState<Staff | null>(null);
@@ -119,25 +121,51 @@ const StaffPage: React.FC = () => {
     }
   }, [lastEvent]);
 
-  const handleCreateStaff = async (e: React.FormEvent) => {
+  const resetStaffForm = () => {
+    setName('');
+    setPhone('');
+    setDesignation('');
+    setMonthlySalaryRupees('');
+    setEditingStaff(null);
+  };
+
+  const openCreateStaffModal = () => {
+    resetStaffForm();
+    setNewStaffModal(true);
+  };
+
+  const openEditStaffModal = (st: Staff) => {
+    setEditingStaff(st);
+    setName(st.name || '');
+    setPhone(st.phone || '');
+    setDesignation(st.designation || '');
+    setMonthlySalaryRupees(st.monthlySalary ? (st.monthlySalary / 100).toString() : '');
+    setNewStaffModal(true);
+  };
+
+  const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/staff', {
+      const payload = {
         name,
         phone,
         mobile: phone,
         designation,
         monthlySalaryRupees: parseFloat(monthlySalaryRupees),
-      });
+      };
+
+      if (editingStaff) {
+        await api.put(`/staff/${editingStaff.id}`, payload);
+      } else {
+        await api.post('/staff', payload);
+      }
+
       setNewStaffModal(false);
-      setName('');
-      setPhone('');
-      setDesignation('');
-      setMonthlySalaryRupees('');
+      resetStaffForm();
       await fetchStaff();
     } catch (err: any) {
-      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to create staff');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to save staff member');
     } finally {
       setSaving(false);
     }
@@ -278,7 +306,7 @@ const StaffPage: React.FC = () => {
             <span>{autoAbsentRunning ? 'Checking...' : '9:30 AM Auto-Absent'}</span>
           </button>
           <button
-            onClick={() => setNewStaffModal(true)}
+            onClick={openCreateStaffModal}
             className="flex items-center space-x-1.5 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -356,9 +384,18 @@ const StaffPage: React.FC = () => {
                     <p className="text-xs font-semibold text-brand-600 mt-0.5">{st.designation}</p>
                     <p className="text-xs text-slate-400 mt-1">{st.phone}</p>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase">
-                    {st.status}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase">
+                      {st.status}
+                    </span>
+                    <button
+                      onClick={() => openEditStaffModal(st)}
+                      title="Edit Employee Details"
+                      className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
@@ -444,17 +481,19 @@ const StaffPage: React.FC = () => {
         )}
       </div>
 
-      {/* NEW STAFF MODAL */}
+      {/* ADD / EDIT STAFF MODAL */}
       {newStaffModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-base text-slate-800">Add New Employee</h3>
-              <button onClick={() => setNewStaffModal(false)}>
+              <h3 className="font-bold text-base text-slate-800">
+                {editingStaff ? 'Edit Employee Details' : 'Add New Employee'}
+              </h3>
+              <button onClick={() => { setNewStaffModal(false); resetStaffForm(); }}>
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-            <form onSubmit={handleCreateStaff} className="p-6 space-y-4">
+            <form onSubmit={handleSaveStaff} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
                   Full Name *
@@ -513,7 +552,7 @@ const StaffPage: React.FC = () => {
                 disabled={saving}
                 className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Save Employee'}
+                {saving ? 'Saving...' : editingStaff ? 'Update Employee' : 'Save Employee'}
               </button>
             </form>
           </div>

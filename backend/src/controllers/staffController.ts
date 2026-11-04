@@ -70,6 +70,49 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const updateStaff = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      mobile,
+      phone,
+      address,
+      designation,
+      salaryType,
+      monthlySalaryRupees,
+      dailyWageRupees,
+      bankDetails,
+      notes,
+      status,
+    } = req.body;
+
+    const data: any = {};
+    if (name !== undefined) data.name = name.trim();
+    const contactNumber = mobile || phone;
+    if (contactNumber !== undefined) data.mobile = contactNumber.trim();
+    if (address !== undefined) data.address = address || null;
+    if (salaryType !== undefined) data.salaryType = salaryType;
+    if (monthlySalaryRupees !== undefined) data.monthlySalary = rupeesToPaise(monthlySalaryRupees);
+    if (dailyWageRupees !== undefined) data.dailyWage = rupeesToPaise(dailyWageRupees);
+    if (bankDetails !== undefined) data.bankDetails = bankDetails || null;
+    if (status !== undefined) data.status = status;
+    if (designation !== undefined || notes !== undefined) {
+      data.notes = notes || (designation ? `Designation: ${designation}` : null);
+    }
+
+    const updatedStaff = await prisma.staff.update({
+      where: { id },
+      data,
+    });
+
+    broadcastEvent('staff_updated', updatedStaff);
+    res.json({ success: true, staffMember: updatedStaff });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const markAttendance = async (req: AuthRequest, res: Response) => {
   try {
     const { staffId, date, status, notes } = req.body;

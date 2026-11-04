@@ -37,7 +37,7 @@ import {
   voidTransaction,
 } from '../controllers/transactionController.js';
 import { getLoans, createLoan, payEmiInstallment } from '../controllers/loanController.js';
-import { getStaff, createStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, runAutoAttendanceCheck } from '../controllers/staffController.js';
+import { getStaff, createStaff, updateStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, runAutoAttendanceCheck } from '../controllers/staffController.js';
 import {
   getPaymentAccounts,
   getInsurancePolicies,
@@ -121,6 +121,8 @@ router.post('/loans/installments/:installmentId/pay', payEmiInstallment as any);
 // 6. Staff, Attendance & Salaries
 router.get('/staff', getStaff as any);
 router.post('/staff', requireRoles('OWNER', 'MANAGER'), createStaff as any);
+router.put('/staff/:id', requireRoles('OWNER', 'MANAGER'), updateStaff as any);
+router.patch('/staff/:id', requireRoles('OWNER', 'MANAGER'), updateStaff as any);
 router.post('/staff/attendance', markAttendance as any);
 router.post('/attendance', markAttendance as any);
 router.get('/staff/:staffId/salary/calculate', calculateAndPaySalary as any);
