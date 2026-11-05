@@ -30,3 +30,31 @@ export function parseDateIST(inputDate?: string | Date | null): Date {
   }).format(d);
   return new Date(`${parts}T00:00:00.000Z`);
 }
+
+/**
+ * Returns current hours and minutes in Indian Standard Time (Asia/Kolkata).
+ */
+export function getCurrentTimeIST(): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const hourStr = parts.find((p) => p.type === 'hour')?.value || '0';
+  const minuteStr = parts.find((p) => p.type === 'minute')?.value || '0';
+  return {
+    hour: parseInt(hourStr, 10),
+    minute: parseInt(minuteStr, 10),
+  };
+}
+
+/**
+ * Checks if current Indian Standard Time is past 9:30 AM.
+ */
+export function isPast930AmIST(): boolean {
+  const { hour, minute } = getCurrentTimeIST();
+  return hour > 9 || (hour === 9 && minute >= 30);
+}
+

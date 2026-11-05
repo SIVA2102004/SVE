@@ -2,11 +2,17 @@ import { Response } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { rupeesToPaise } from '../utils/currency.js';
-import { getTodayIST, parseDateIST } from '../utils/date.js';
+import { getTodayIST, parseDateIST, isPast930AmIST } from '../utils/date.js';
 import { broadcastEvent } from '../websocket/socket.js';
+import { executeAutoAbsentCheck } from '../services/attendanceScheduler.js';
 
 export const getStaff = async (req: AuthRequest, res: Response) => {
   try {
+    // If client queries staff after 9:30 AM IST, ensure cutoff has run
+    if (isPast930AmIST()) {
+      await executeAutoAbsentCheck().catch(() => {});
+    }
+
     const staff = await prisma.staff.findMany({
       orderBy: { name: 'asc' },
       include: {
@@ -588,35 +594,39 @@ export const runAutoAttendanceCheck = async (req: AuthRequest, res: Response) =>
       const absentResults: any[] = [];
 
       for (const staff of unmarked) {
-        const record = await prisma.attendance.create({
-          data: {
+        try {
+          const record = await prisma.attendance.create({
+            data: {
+              staffId: staff.id,
+              date: today,
+              status: 'ABSENT',
+              notes: 'Auto-marked ABSENT at 9:30 AM cutoff',
+            },
+          });
+
+          const dateStr = today.toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          });
+
+          const cleanPhone = (staff.mobile || '').replace(/[^0-9]/g, '');
+          const whatsappMessage = `Namaste ${staff.name},\nYou have been marked *ABSENT* for today (${dateStr}) at SVE.\nIf this is an error, please reach out to the store manager.`;
+          const whatsappUrl = cleanPhone
+            ? `https://api.whatsapp.com/send?phone=91${cleanPhone.slice(-10)}&text=${encodeURIComponent(whatsappMessage)}`
+            : null;
+
+          absentResults.push({
             staffId: staff.id,
-            date: today,
+            name: staff.name,
+            phone: staff.mobile,
             status: 'ABSENT',
-            notes: 'Auto-marked ABSENT at 9:30 AM cutoff',
-          },
-        });
-
-        const dateStr = today.toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        });
-
-        const cleanPhone = (staff.mobile || '').replace(/[^0-9]/g, '');
-        const whatsappMessage = `Namaste ${staff.name},\nYou have been marked *ABSENT* for today (${dateStr}) at SVE.\nIf this is an error, please reach out to the store manager.`;
-        const whatsappUrl = cleanPhone
-          ? `https://api.whatsapp.com/send?phone=91${cleanPhone.slice(-10)}&text=${encodeURIComponent(whatsappMessage)}`
-          : null;
-
-        absentResults.push({
-          staffId: staff.id,
-          name: staff.name,
-          phone: staff.mobile,
-          status: 'ABSENT',
-          whatsappMessage,
-          whatsappUrl,
-        });
+            whatsappMessage,
+            whatsappUrl,
+          });
+        } catch (e: any) {
+          console.warn(`Already marked or error for ${staff.name}:`, e.message);
+        }
       }
 
       broadcastEvent('attendance_auto_absent_930am', {

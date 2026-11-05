@@ -1,7 +1,76 @@
 import cron from 'node-cron';
 import { prisma } from '../utils/prisma.js';
-import { getTodayIST } from '../utils/date.js';
+import { getTodayIST, isPast930AmIST } from '../utils/date.js';
 import { broadcastEvent } from '../websocket/socket.js';
+
+/**
+ * Executes the 9:30 AM Auto-Absent check for any unmarked staff.
+ * Safe to call both on schedule and catch-up on server wake/startup or client requests.
+ */
+export async function executeAutoAbsentCheck(): Promise<number> {
+  const today = getTodayIST();
+
+  const activeStaff = await prisma.staff.findMany({
+    where: { status: 'ACTIVE' },
+    include: {
+      attendance: {
+        where: { date: today },
+      },
+    },
+  });
+
+  const unmarkedStaff = activeStaff.filter((s) => s.attendance.length === 0);
+  if (unmarkedStaff.length === 0) return 0;
+
+  const autoMarked: any[] = [];
+
+  for (const staff of unmarkedStaff) {
+    try {
+      const record = await prisma.attendance.create({
+        data: {
+          staffId: staff.id,
+          date: today,
+          status: 'ABSENT',
+          notes: 'Auto-marked ABSENT at 9:30 AM (cut-off threshold passed)',
+        },
+      });
+      autoMarked.push({ staff, record });
+    } catch (e: any) {
+      // Catch unique constraint violation if marked concurrently
+      console.warn(`Could not auto-mark absent for ${staff.name}:`, e.message);
+    }
+  }
+
+  if (autoMarked.length > 0) {
+    console.log(`⚠️ [Auto-Absent] Successfully marked ${autoMarked.length} staff member(s) ABSENT for ${today.toISOString()}`);
+    broadcastEvent('attendance_auto_absent_930am', {
+      message: `⚠️ 9:30 AM Cutoff: ${autoMarked.length} staff member(s) auto-marked as ABSENT.`,
+      autoMarked: autoMarked.map((a) => ({
+        staffId: a.staff.id,
+        name: a.staff.name,
+        phone: a.staff.mobile,
+        status: 'ABSENT',
+      })),
+    });
+  }
+
+  return autoMarked.length;
+}
+
+/**
+ * Checks and auto-marks unrecorded staff if the current IST time is past 9:30 AM.
+ * Ensures that if Render slept until after 9:30 AM, the cutoff applies immediately upon server wake.
+ */
+export async function catchUpPast930AmAttendance(): Promise<void> {
+  if (isPast930AmIST()) {
+    console.log('⏰ [Startup Catch-Up] Current IST time is past 9:30 AM. Running cutoff attendance check...');
+    try {
+      await executeAutoAbsentCheck();
+    } catch (err) {
+      console.error('Error during 9:30 AM attendance catch-up:', err);
+    }
+  }
+}
 
 /**
  * Staff Attendance Auto Scheduler:
@@ -15,6 +84,9 @@ import { broadcastEvent } from '../websocket/socket.js';
  *    - Generates WhatsApp notification payload and broadcasts real-time update.
  */
 export const initAttendanceScheduler = () => {
+  // Catch-up immediately on server initialization if waking up after 9:30 AM IST
+  catchUpPast930AmAttendance();
+
   // 9:00 AM IST Cron: "0 9 * * *" with timezone Asia/Kolkata
   cron.schedule(
     '0 9 * * *',
@@ -56,43 +128,7 @@ export const initAttendanceScheduler = () => {
     async () => {
       console.log('⏰ [Attendance Cron 9:30 AM] Auto-marking unrecorded staff as ABSENT');
       try {
-        const today = getTodayIST();
-
-        const activeStaff = await prisma.staff.findMany({
-          where: { status: 'ACTIVE' },
-          include: {
-            attendance: {
-              where: { date: today },
-            },
-          },
-        });
-
-        const unmarkedStaff = activeStaff.filter((s) => s.attendance.length === 0);
-        const autoMarked: any[] = [];
-
-        for (const staff of unmarkedStaff) {
-          const record = await prisma.attendance.create({
-            data: {
-              staffId: staff.id,
-              date: today,
-              status: 'ABSENT',
-              notes: 'Auto-marked ABSENT at 9:30 AM (cut-off threshold passed)',
-            },
-          });
-          autoMarked.push({ staff, record });
-        }
-
-        if (autoMarked.length > 0) {
-          broadcastEvent('attendance_auto_absent_930am', {
-            message: `⚠️ 9:30 AM Cutoff: ${autoMarked.length} staff member(s) auto-marked as ABSENT.`,
-            autoMarked: autoMarked.map((a) => ({
-              staffId: a.staff.id,
-              name: a.staff.name,
-              phone: a.staff.mobile,
-              status: 'ABSENT',
-            })),
-          });
-        }
+        await executeAutoAbsentCheck();
       } catch (err) {
         console.error('Error in 9:30 AM Attendance Cron:', err);
       }
