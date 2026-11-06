@@ -281,6 +281,31 @@ export const createReminder = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const completeReminder = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const reminder = await prisma.reminder.update({
+      where: { id },
+      data: { isCompleted: true },
+    });
+    res.json({ success: true, reminder });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteReminder = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.reminder.delete({
+      where: { id },
+    });
+    res.json({ success: true, message: 'Reminder deleted successfully' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const uploadReceipt = async (req: AuthRequest, res: Response) => {
   try {
     const file = req.file;

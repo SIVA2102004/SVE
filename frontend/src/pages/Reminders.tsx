@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 import { formatDate, formatINR } from '../utils/formatters';
 import { Reminder } from '../types';
-import { Bell, Plus, CheckCircle2, RefreshCw, X, Calendar, AlertCircle } from 'lucide-react';
+import { Bell, Plus, CheckCircle2, RefreshCw, X, Calendar, AlertCircle, Trash2 } from 'lucide-react';
 
 const Reminders: React.FC = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -74,6 +74,16 @@ const Reminders: React.FC = () => {
       await fetchReminders();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update reminder');
+    }
+  };
+
+  const handleDelete = async (id: string, reminderTitle: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${reminderTitle}"?`)) return;
+    try {
+      await api.delete(`/reminders/${id}`);
+      await fetchReminders();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to delete reminder');
     }
   };
 
@@ -200,15 +210,34 @@ const Reminders: React.FC = () => {
                   </span>
                 ) : null}
                 {r.status === 'PENDING' ? (
-                  <button
-                    onClick={() => handleComplete(r.id)}
-                    className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition-colors font-bold text-xs flex items-center space-x-1"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Done</span>
-                  </button>
+                  <div className="flex items-center space-x-1.5">
+                    <button
+                      onClick={() => handleComplete(r.id)}
+                      className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition-colors font-bold text-xs flex items-center space-x-1"
+                      title="Mark as completed"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Done</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r.id, r.title)}
+                      className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-colors font-bold text-xs"
+                      title="Delete Reminder"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 ) : (
-                  <span className="text-xs text-emerald-700 font-bold">Completed</span>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-xs text-emerald-700 font-bold">Completed</span>
+                    <button
+                      onClick={() => handleDelete(r.id, r.title)}
+                      className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-colors font-bold text-xs"
+                      title="Delete Reminder"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

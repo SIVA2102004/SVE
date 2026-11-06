@@ -51,6 +51,8 @@ import {
   createPersonalIncome,
   getReminders,
   createReminder,
+  completeReminder,
+  deleteReminder,
   uploadReceipt,
   getReceipts,
   getAuditLogs,
@@ -159,7 +161,8 @@ router.patch('/insurance/:id', requireRoles('OWNER', 'MANAGER'), updateInsurance
 router.delete('/insurance/:id', requireRoles('OWNER', 'MANAGER'), deleteInsurancePolicy as any);
 router.get('/reminders', getReminders as any);
 router.post('/reminders', createReminder as any);
-router.patch('/reminders/:id/complete', createReminder as any);
+router.patch('/reminders/:id/complete', completeReminder as any);
+router.delete('/reminders/:id', deleteReminder as any);
 
 // 8. Chit Funds & Personal Income
 router.get('/chits', getChitSchemes as any);
