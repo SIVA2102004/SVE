@@ -54,6 +54,7 @@ const Customers: React.FC = () => {
 
   // Payment Form
   const [payAmount, setPayAmount] = useState('');
+  const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAcc, setSelectedAcc] = useState('');
   const [payMode, setPayMode] = useState<'CASH' | 'BANK' | 'UPI'>('CASH');
@@ -195,6 +196,7 @@ const Customers: React.FC = () => {
         amountRupees: parseFloat(payAmount),
         paymentAccountId: selectedAcc,
         paymentMode: payMode,
+        paymentDate: payDate,
         notes,
       });
 
@@ -208,6 +210,7 @@ const Customers: React.FC = () => {
 
       setPaymentModalCust(null);
       setPayAmount('');
+      setPayDate(new Date().toISOString().split('T')[0]);
       setNotes('');
       await fetchCustomers();
     } catch (err: any) {
@@ -614,19 +617,33 @@ const Customers: React.FC = () => {
                 <span className="text-slate-500">Current Due:</span>
                 <span className="text-rose-600 font-bold">{formatINR(paymentModalCust.pendingBalance)}</span>
               </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Amount Received (₹) *
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  required
-                  placeholder="e.g. 5000"
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Amount Received (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    placeholder="e.g. 5000"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Payment Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">

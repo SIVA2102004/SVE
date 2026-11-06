@@ -197,6 +197,7 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
       paymentMethodAccountId,
       payableId,
       notes,
+      paymentDate,
       idempotencyKey,
     } = req.body;
 
@@ -204,6 +205,8 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
     if (payPaise <= 0) {
       return res.status(400).json({ success: false, message: 'Payment amount must be greater than zero.' });
     }
+
+    const txDate = paymentDate ? new Date(paymentDate) : new Date();
 
     // Idempotency check
     if (idempotencyKey) {
@@ -235,6 +238,7 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
       const payment = await tx.payment.create({
         data: {
           receiptNumber,
+          date: txDate,
           type: 'DEALER_EXPENSE',
           amount: payPaise,
           paymentMethod,
@@ -250,6 +254,7 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
       // 4. Create financial transaction
       const transaction = await tx.transaction.create({
         data: {
+          date: txDate,
           type: 'PAYABLE_PAYMENT',
           category: 'Dealer Payment',
           amount: payPaise,

@@ -190,6 +190,7 @@ export const recordCustomerPayment = async (req: AuthRequest, res: Response) => 
       paymentMethodAccountId,
       receivableId,
       notes,
+      paymentDate,
       idempotencyKey,
     } = req.body;
 
@@ -197,6 +198,8 @@ export const recordCustomerPayment = async (req: AuthRequest, res: Response) => 
     if (payPaise <= 0) {
       return res.status(400).json({ success: false, message: 'Payment amount must be greater than zero.' });
     }
+
+    const txDate = paymentDate ? new Date(paymentDate) : new Date();
 
     // Idempotency check to prevent duplicate payment submissions
     if (idempotencyKey) {
@@ -228,6 +231,7 @@ export const recordCustomerPayment = async (req: AuthRequest, res: Response) => 
       const payment = await tx.payment.create({
         data: {
           receiptNumber,
+          date: txDate,
           type: 'CUSTOMER_INCOME',
           amount: payPaise,
           paymentMethod,
@@ -243,6 +247,7 @@ export const recordCustomerPayment = async (req: AuthRequest, res: Response) => 
       // 4. Create financial transaction
       const transaction = await tx.transaction.create({
         data: {
+          date: txDate,
           type: 'RECEIVABLE_PAYMENT',
           category: 'Customer Payment',
           amount: payPaise,
