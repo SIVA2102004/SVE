@@ -120,8 +120,8 @@ const Login: React.FC = () => {
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
         {/* Header Banner */}
         <div className="bg-gradient-to-r from-navy-900 via-brand-900 to-brand-800 p-8 text-center text-white relative">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-brand-500 to-emerald-400 mx-auto flex items-center justify-center shadow-lg mb-4 text-3xl font-black">
-            ₹
+          <div className="w-20 h-20 rounded-2xl overflow-hidden mx-auto shadow-xl ring-2 ring-emerald-400/50 mb-4 bg-navy-950">
+            <img src="/logo.jpg" alt="SVE Logo" className="w-full h-full object-cover object-top" />
           </div>
           <h1 className="text-3xl font-black tracking-wider">SVE</h1>
           <p className="text-xs text-brand-200 mt-1 uppercase tracking-wider font-semibold">

@@ -84,8 +84,8 @@ const Layout: React.FC = () => {
       <aside className="hidden lg:flex flex-col w-64 bg-navy-950 text-white border-r border-navy-900 shadow-xl">
         <div className="p-5 border-b border-navy-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center font-bold text-white text-xl shadow-md">
-              ₹
+            <div className="w-11 h-11 rounded-xl overflow-hidden shadow-md ring-2 ring-emerald-500/40 bg-navy-900 flex-shrink-0">
+              <img src="/logo.jpg" alt="SVE Logo" className="w-full h-full object-cover object-top" />
             </div>
             <div>
               <h1 className="font-bold text-lg text-white tracking-wider">SVE 2.0</h1>
@@ -184,8 +184,8 @@ const Layout: React.FC = () => {
         <header className="lg:hidden bg-navy-950 text-white border-b border-navy-900 px-4 py-3 flex flex-col gap-2 shadow-md">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center font-bold text-white text-base">
-                ₹
+              <div className="w-9 h-9 rounded-xl overflow-hidden shadow-sm ring-1 ring-emerald-500/40 bg-navy-900 flex-shrink-0">
+                <img src="/logo.jpg" alt="SVE Logo" className="w-full h-full object-cover object-top" />
               </div>
               <div>
                 <span className="font-bold text-base tracking-wider text-white">SVE 2.0</span>
