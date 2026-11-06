@@ -66,12 +66,15 @@ const MoneyFlow: React.FC = () => {
     setVoidLoading(true);
 
     try {
-      await api.post(`/transactions/${voidModalTx.id}/void`, { reason: voidReason });
+      await api.post(`/transactions/${voidModalTx.id}/void`, {
+        reason: voidReason,
+        voidReason: voidReason,
+      });
       setVoidModalTx(null);
       setVoidReason('');
       await fetchTransactions();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to void transaction');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to void transaction');
     } finally {
       setVoidLoading(false);
     }

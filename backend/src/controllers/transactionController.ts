@@ -201,9 +201,10 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
 export const voidTransaction = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { voidReason } = req.body;
+    const { voidReason, reason } = req.body;
+    const finalReason = voidReason || reason;
 
-    if (!voidReason) {
+    if (!finalReason) {
       return res.status(400).json({ success: false, message: 'Reason for voiding transaction is required.' });
     }
 
@@ -290,7 +291,7 @@ export const voidTransaction = async (req: AuthRequest, res: Response) => {
         where: { id },
         data: {
           status: 'VOID',
-          voidReason,
+          voidReason: finalReason,
         },
       });
 
@@ -303,7 +304,7 @@ export const voidTransaction = async (req: AuthRequest, res: Response) => {
             entityType: 'TRANSACTION',
             entityId: id,
             amount: existing.amount,
-            details: JSON.stringify({ voidReason }),
+            details: JSON.stringify({ voidReason: finalReason }),
           },
         });
       } catch (logErr) {
