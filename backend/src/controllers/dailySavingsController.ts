@@ -63,7 +63,7 @@ export const getDailySavings = async (req: AuthRequest, res: Response) => {
 
     const reminderMessage = isCollectedToday
       ? `✅ SVE Daily Future Savings: ₹${todayAmountRupees.toLocaleString('en-IN')} for today (${todayDateStr}) is marked as COLLECTED. Grand Total: ₹${(grandTotalPaise / 100).toLocaleString('en-IN')}.`
-      : `🔔 SVE Daily Future Savings Reminder:\nFriendly intimation to collect daily target ₹${todayAmountRupees.toLocaleString('en-IN')} for today (${todayDateStr})!\n(Saved separately for future - not included in accounts).`;
+      : `🔔 12:30 PM Mandatory Alert: Collect today's savings amount of ₹${todayAmountRupees.toLocaleString('en-IN')} (${todayDateStr}) for your future savings fund!`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(reminderMessage)}`;
 

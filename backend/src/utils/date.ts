@@ -58,3 +58,12 @@ export function isPast930AmIST(): boolean {
   return hour > 9 || (hour === 9 && minute >= 30);
 }
 
+/**
+ * Checks if current Indian Standard Time is past 12:30 PM.
+ */
+export function isPast1230PmIST(): boolean {
+  const { hour, minute } = getCurrentTimeIST();
+  return hour > 12 || (hour === 12 && minute >= 30);
+}
+
+

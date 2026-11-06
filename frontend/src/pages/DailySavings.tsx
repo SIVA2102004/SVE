@@ -63,6 +63,24 @@ const DailySavings: React.FC = () => {
     }
   };
 
+  // Browser Push/Desktop Notification Permission
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  );
+
+  const requestNotificationPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const perm = await Notification.requestPermission();
+      setNotificationPermission(perm);
+      if (perm === 'granted') {
+        new Notification('SVE Daily Future Savings', {
+          body: 'Daily reminders are enabled! You will be alerted at 12:30 PM daily to collect your savings.',
+          icon: '/favicon.ico',
+        });
+      }
+    }
+  };
+
   useEffect(() => {
     fetchMonthData(currentYear, currentMonth);
   }, [currentYear, currentMonth]);
@@ -70,6 +88,19 @@ const DailySavings: React.FC = () => {
   useEffect(() => {
     if (lastEvent && (lastEvent.type === 'DAILY_SAVINGS_UPDATED' || lastEvent.type === 'DAILY_SAVINGS_REMINDER')) {
       fetchMonthData(currentYear, currentMonth);
+
+      // Trigger browser notification if permitted and savings is pending
+      if (
+        lastEvent.type === 'DAILY_SAVINGS_REMINDER' &&
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted'
+      ) {
+        new Notification('⏰ SVE Daily Savings: 12:30 PM Reminder', {
+          body: lastEvent.payload?.message || "Collect today's daily future savings amount!",
+          icon: '/favicon.ico',
+        });
+      }
     }
   }, [lastEvent]);
 
@@ -237,9 +268,20 @@ const DailySavings: React.FC = () => {
               <Clock className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider">
-                {reminder.isCollected ? '✅ Today\'s ₹3,000 Future Savings Secured' : '🔔 Today\'s Daily Savings Reminder'}
-              </h4>
+              <div className="flex items-center space-x-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider">
+                  {reminder.isCollected ? '✅ Today\'s ₹3,000 Future Savings Secured' : '🔔 12:30 PM Daily Savings Reminder'}
+                </h4>
+                {notificationPermission !== 'granted' && (
+                  <button
+                    onClick={requestNotificationPermission}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-200 hover:bg-amber-300 text-amber-900 border border-amber-300 transition-colors"
+                    title="Allow desktop browser popup alerts"
+                  >
+                    Enable Browser Popups
+                  </button>
+                )}
+              </div>
               <p className="text-xs mt-0.5 opacity-90 whitespace-pre-line">{reminder.message}</p>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { prisma } from '../utils/prisma.js';
-import { getTodayIST, isPast930AmIST } from '../utils/date.js';
+import { getTodayIST, isPast930AmIST, isPast1230PmIST } from '../utils/date.js';
 import { broadcastEvent } from '../websocket/socket.js';
 
 /**
@@ -58,6 +58,44 @@ export async function executeAutoAbsentCheck(): Promise<number> {
 }
 
 /**
+ * Checks and broadcasts Daily Future Savings reminder (12:30 PM IST requirement).
+ */
+export async function checkAndBroadcastDailySavingsReminder(): Promise<void> {
+  try {
+    const today = getTodayIST();
+    const existing = await prisma.dailySavingsEntry.findUnique({
+      where: { date: today },
+    });
+
+    const isCollected = existing && existing.status === 'COLLECTED';
+    const amountRupees = existing ? existing.amount / 100 : 3000;
+    const cleanPhone = '7981037237';
+
+    const todayDateStr = today.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    if (!isCollected) {
+      const message = `🔔 12:30 PM Mandatory Alert: Collect today's savings amount of ₹${amountRupees.toLocaleString('en-IN')} (${todayDateStr}) for your future savings fund!`;
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}`;
+
+      console.log(`📢 [12:30 PM Reminder] Emitting mandatory daily savings reminder for ₹${amountRupees}`);
+      broadcastEvent('daily_savings_reminder', {
+        time: '12:30 PM',
+        date: today.toISOString(),
+        amountRupees,
+        message,
+        whatsappUrl,
+      });
+    }
+  } catch (err) {
+    console.error('Error in checkAndBroadcastDailySavingsReminder:', err);
+  }
+}
+
+/**
  * Checks and auto-marks unrecorded staff if the current IST time is past 9:30 AM.
  * Ensures that if Render slept until after 9:30 AM, the cutoff applies immediately upon server wake.
  */
@@ -86,6 +124,11 @@ export async function catchUpPast930AmAttendance(): Promise<void> {
 export const initAttendanceScheduler = () => {
   // Catch-up immediately on server initialization if waking up after 9:30 AM IST
   catchUpPast930AmAttendance();
+
+  // If server wakes up after 12:30 PM, verify if daily savings reminder needs to be broadcast
+  if (isPast1230PmIST()) {
+    checkAndBroadcastDailySavingsReminder();
+  }
 
   // 9:00 AM IST Cron: "0 9 * * *" with timezone Asia/Kolkata
   cron.schedule(
@@ -173,41 +216,12 @@ export const initAttendanceScheduler = () => {
     }
   );
 
-  // 4. Daily 9:15 AM IST Cron: Future Savings Calendar Reminder
+  // 4. Daily 12:30 PM IST Cron: Mandatory Daily Future Savings Reminder
   cron.schedule(
-    '15 9 * * *',
+    '30 12 * * *',
     async () => {
-      console.log('⏰ [Daily Savings Cron 9:15 AM] Checking daily ₹3,000 future savings status');
-      try {
-        const today = getTodayIST();
-        const existing = await prisma.dailySavingsEntry.findUnique({
-          where: { date: today },
-        });
-
-        const todayDateStr = today.toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        });
-
-        const cleanPhone = '7981037237';
-        const amountRupees = existing ? existing.amount / 100 : 3000;
-        const isCollected = existing && existing.status === 'COLLECTED';
-
-        if (!isCollected) {
-          const message = `🔔 Daily Future Savings Reminder:\nFriendly intimation to collect today's savings of ₹${amountRupees.toLocaleString('en-IN')} (${todayDateStr}) for your future fund!`;
-          const whatsappUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}`;
-
-          broadcastEvent('daily_savings_reminder', {
-            date: today.toISOString(),
-            amountRupees,
-            message,
-            whatsappUrl,
-          });
-        }
-      } catch (err) {
-        console.error('Error in Daily Savings Cron:', err);
-      }
+      console.log('⏰ [Daily Savings Cron 12:30 PM] Triggering mandatory 12:30 PM daily savings reminder');
+      await checkAndBroadcastDailySavingsReminder();
     },
     {
       timezone: 'Asia/Kolkata',
