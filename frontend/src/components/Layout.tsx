@@ -26,6 +26,7 @@ import {
   Shield,
   Coins,
   Wallet,
+  Calendar,
 } from 'lucide-react';
 import QuickAddModal from './QuickAddModal';
 
@@ -67,6 +68,7 @@ const Layout: React.FC = () => {
     { name: 'Loans & EMIs', path: '/loans', icon: CreditCard, roles: ['OWNER', 'MANAGER'] },
     { name: 'Chit Funds', path: '/chits', icon: Coins, roles: ['OWNER', 'MANAGER'] },
     { name: 'Personal Income', path: '/personal-income', icon: Wallet, roles: ['OWNER', 'MANAGER'] },
+    { name: 'Daily Savings (₹3k)', path: '/daily-savings', icon: Calendar, roles: ['OWNER', 'MANAGER'] },
     { name: 'Receipts Vault', path: '/receipts', icon: FileText, roles: ['OWNER', 'MANAGER', 'STAFF'] },
     { name: 'Reminders', path: '/reminders', icon: Bell, roles: ['OWNER', 'MANAGER', 'STAFF'] },
     { name: 'Reports & P&L', path: '/reports', icon: BarChart3, roles: ['OWNER', 'MANAGER'] },

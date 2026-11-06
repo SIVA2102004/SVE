@@ -172,4 +172,45 @@ export const initAttendanceScheduler = () => {
       timezone: 'Asia/Kolkata',
     }
   );
+
+  // 4. Daily 9:15 AM IST Cron: Future Savings Calendar Reminder
+  cron.schedule(
+    '15 9 * * *',
+    async () => {
+      console.log('⏰ [Daily Savings Cron 9:15 AM] Checking daily ₹3,000 future savings status');
+      try {
+        const today = getTodayIST();
+        const existing = await prisma.dailySavingsEntry.findUnique({
+          where: { date: today },
+        });
+
+        const todayDateStr = today.toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+
+        const cleanPhone = '7981037237';
+        const amountRupees = existing ? existing.amount / 100 : 3000;
+        const isCollected = existing && existing.status === 'COLLECTED';
+
+        if (!isCollected) {
+          const message = `🔔 Daily Future Savings Reminder:\nFriendly intimation to collect today's savings of ₹${amountRupees.toLocaleString('en-IN')} (${todayDateStr}) for your future fund!`;
+          const whatsappUrl = `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}`;
+
+          broadcastEvent('daily_savings_reminder', {
+            date: today.toISOString(),
+            amountRupees,
+            message,
+            whatsappUrl,
+          });
+        }
+      } catch (err) {
+        console.error('Error in Daily Savings Cron:', err);
+      }
+    },
+    {
+      timezone: 'Asia/Kolkata',
+    }
+  );
 };

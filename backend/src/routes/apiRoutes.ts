@@ -58,6 +58,7 @@ import {
   updateShopSettings,
 } from '../controllers/miscController.js';
 import { getCashFlowReport, getProfitLossReport } from '../controllers/reportController.js';
+import { getDailySavings, upsertDailySavingsEntry } from '../controllers/dailySavingsController.js';
 
 const router = Router();
 
@@ -161,5 +162,10 @@ router.get('/reports/profit-loss', getProfitLossReport as any);
 
 // 10. Audit Logs
 router.get('/audit-logs', requireRoles('OWNER'), getAuditLogs as any);
+
+// 11. Daily Future Savings Calendar (₹3,000 Target)
+router.get('/daily-savings', getDailySavings as any);
+router.post('/daily-savings', requireRoles('OWNER', 'MANAGER'), upsertDailySavingsEntry as any);
+router.put('/daily-savings', requireRoles('OWNER', 'MANAGER'), upsertDailySavingsEntry as any);
 
 export default router;

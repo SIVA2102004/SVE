@@ -576,3 +576,17 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+model DailySavingsEntry {
+  id        String   @id @default(uuid())
+  date      DateTime @unique // Stored as midnight UTC corresponding to IST calendar date
+  amount    Int      @default(300000) // Default ₹3,000 in paise (300000)
+  status    String   @default("COLLECTED") // COLLECTED, PENDING, SKIPPED
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@map("daily_savings_entries")
+}
+

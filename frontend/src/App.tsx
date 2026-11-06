@@ -20,6 +20,7 @@ import Settings from './pages/Settings';
 import Insurance from './pages/Insurance';
 import Chits from './pages/Chits';
 import PersonalIncome from './pages/PersonalIncome';
+import DailySavings from './pages/DailySavings';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> = ({
   children,
@@ -105,6 +106,14 @@ function App() {
                 element={
                   <ProtectedRoute roles={['OWNER', 'MANAGER']}>
                     <PersonalIncome />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="daily-savings"
+                element={
+                  <ProtectedRoute roles={['OWNER', 'MANAGER']}>
+                    <DailySavings />
                   </ProtectedRoute>
                 }
               />

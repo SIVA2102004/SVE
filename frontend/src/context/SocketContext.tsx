@@ -66,6 +66,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     socketInstance.on('attendance_marked', handleEvent('ATTENDANCE_MARKED'));
     socketInstance.on('attendance_reminder_9am', handleEvent('ATTENDANCE_REMINDER_9AM'));
     socketInstance.on('attendance_auto_absent_930am', handleEvent('ATTENDANCE_AUTO_ABSENT_930AM'));
+    socketInstance.on('daily_savings_updated', handleEvent('DAILY_SAVINGS_UPDATED'));
+    socketInstance.on('daily_savings_reminder', handleEvent('DAILY_SAVINGS_REMINDER'));
 
     setSocket(socketInstance);
 
