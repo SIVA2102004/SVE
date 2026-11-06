@@ -54,8 +54,8 @@ const Insurance: React.FC = () => {
 
   // Form State
   const { scope } = useScope();
-  const [formScope, setFormScope] = useState<'PERSONAL' | 'FAMILY' | 'BUSINESS'>(
-    scope === 'OVERALL' ? 'PERSONAL' : (scope as 'PERSONAL' | 'FAMILY' | 'BUSINESS')
+  const [formScope, setFormScope] = useState<'PERSONAL' | 'BUSINESS'>(
+    scope === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL'
   );
   const [policyName, setPolicyName] = useState('');
   const [company, setCompany] = useState('');
@@ -125,13 +125,13 @@ const Insurance: React.FC = () => {
 
   const openCreateModal = () => {
     resetForm();
-    setFormScope(scope === 'OVERALL' ? 'PERSONAL' : (scope as 'PERSONAL' | 'FAMILY' | 'BUSINESS'));
+    setFormScope(scope === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL');
     setModalOpen(true);
   };
 
   const openEditModal = (p: InsurancePolicy) => {
     setEditingPolicy(p);
-    setFormScope(p.scope as any);
+    setFormScope(p.scope === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL');
     setPolicyName(p.policyName || '');
     setCompany(p.company || '');
     setPolicyNumber(p.policyNumber || '');
@@ -288,11 +288,9 @@ const Insurance: React.FC = () => {
               >
                 <div
                   className={`absolute top-0 left-0 right-0 h-1.5 ${
-                    p.scope === 'PERSONAL'
-                      ? 'bg-emerald-500'
-                      : p.scope === 'FAMILY'
-                      ? 'bg-purple-500'
-                      : 'bg-brand-600'
+                    p.scope === 'BUSINESS'
+                      ? 'bg-brand-600'
+                      : 'bg-emerald-500'
                   }`}
                 />
 
@@ -308,14 +306,12 @@ const Insurance: React.FC = () => {
                     <div className="flex items-center space-x-1.5">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          p.scope === 'PERSONAL'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : p.scope === 'FAMILY'
-                            ? 'bg-purple-50 text-purple-700'
-                            : 'bg-brand-50 text-brand-700'
+                          p.scope === 'BUSINESS'
+                            ? 'bg-brand-50 text-brand-700'
+                            : 'bg-emerald-50 text-emerald-700'
                         }`}
                       >
-                        {p.scope}
+                        {p.scope === 'PERSONAL' || p.scope === 'FAMILY' ? 'Personal' : p.scope}
                       </span>
                       <button
                         onClick={() => openEditModal(p)}
@@ -441,7 +437,6 @@ const Insurance: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 font-semibold"
                   >
                     <option value="PERSONAL">Personal</option>
-                    <option value="FAMILY">Family</option>
                     <option value="BUSINESS">Business (SVE)</option>
                   </select>
                 </div>

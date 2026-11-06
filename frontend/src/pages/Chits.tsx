@@ -62,8 +62,8 @@ const Chits: React.FC = () => {
 
   // Form State
   const { scope } = useScope();
-  const [formScope, setFormScope] = useState<'PERSONAL' | 'FAMILY' | 'BUSINESS'>(
-    scope === 'OVERALL' ? 'PERSONAL' : (scope as 'PERSONAL' | 'FAMILY' | 'BUSINESS')
+  const [formScope, setFormScope] = useState<'PERSONAL' | 'BUSINESS'>(
+    scope === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL'
   );
   const [chitName, setChitName] = useState('');
   const [chitCompany, setChitCompany] = useState('');
@@ -216,11 +216,9 @@ const Chits: React.FC = () => {
             >
               <div
                 className={`absolute top-0 left-0 right-0 h-1.5 ${
-                  c.scope === 'PERSONAL'
-                    ? 'bg-emerald-500'
-                    : c.scope === 'FAMILY'
-                    ? 'bg-purple-500'
-                    : 'bg-brand-600'
+                  c.scope === 'BUSINESS'
+                    ? 'bg-brand-600'
+                    : 'bg-emerald-500'
                 }`}
               />
 
@@ -237,14 +235,12 @@ const Chits: React.FC = () => {
                   </div>
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      c.scope === 'PERSONAL'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : c.scope === 'FAMILY'
-                        ? 'bg-purple-50 text-purple-700'
-                        : 'bg-brand-50 text-brand-700'
+                      c.scope === 'BUSINESS'
+                        ? 'bg-brand-50 text-brand-700'
+                        : 'bg-emerald-50 text-emerald-700'
                     }`}
                   >
-                    {c.scope}
+                    {c.scope === 'PERSONAL' || c.scope === 'FAMILY' ? 'Personal' : c.scope}
                   </span>
                 </div>
 
@@ -321,7 +317,6 @@ const Chits: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 font-semibold"
                   >
                     <option value="PERSONAL">Personal</option>
-                    <option value="FAMILY">Family</option>
                     <option value="BUSINESS">Business</option>
                   </select>
                 </div>

@@ -109,18 +109,18 @@ const Layout: React.FC = () => {
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">
             Financial Scope
           </p>
-          <div className="grid grid-cols-2 gap-1.5 bg-navy-950 p-1.5 rounded-xl border border-navy-800 text-xs font-semibold">
-            {(['OVERALL', 'PERSONAL', 'FAMILY', 'BUSINESS'] as FinancialScope[]).map((s) => (
+          <div className="grid grid-cols-3 gap-1 bg-navy-950 p-1 rounded-xl border border-navy-800 text-xs font-semibold">
+            {(['OVERALL', 'PERSONAL', 'BUSINESS'] as FinancialScope[]).map((s) => (
               <button
                 key={s}
                 onClick={() => setScope(s)}
-                className={`py-1.5 px-2 rounded-lg text-center transition-all ${
+                className={`py-1.5 px-1.5 rounded-lg text-center transition-all ${
                   scope === s
                     ? 'bg-brand-600 text-white shadow-sm font-bold'
                     : 'text-slate-400 hover:text-white hover:bg-navy-900'
                 }`}
               >
-                {s === 'OVERALL' ? 'Overall' : s === 'PERSONAL' ? 'Personal' : s === 'FAMILY' ? 'Family' : 'Business'}
+                {s === 'OVERALL' ? 'Overall' : s === 'PERSONAL' ? 'Personal' : 'Business'}
               </button>
             ))}
           </div>
@@ -221,8 +221,8 @@ const Layout: React.FC = () => {
           </div>
 
           {/* Mobile Scope Switcher Pills */}
-          <div className="grid grid-cols-4 gap-1 p-1 bg-navy-900 rounded-xl border border-navy-800 text-[11px] font-bold">
-            {(['OVERALL', 'PERSONAL', 'FAMILY', 'BUSINESS'] as FinancialScope[]).map((s) => (
+          <div className="grid grid-cols-3 gap-1 p-1 bg-navy-900 rounded-xl border border-navy-800 text-[11px] font-bold">
+            {(['OVERALL', 'PERSONAL', 'BUSINESS'] as FinancialScope[]).map((s) => (
               <button
                 key={s}
                 onClick={() => setScope(s)}
@@ -232,7 +232,7 @@ const Layout: React.FC = () => {
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {s === 'OVERALL' ? 'All' : s === 'PERSONAL' ? 'Personal' : s === 'FAMILY' ? 'Family' : 'Business'}
+                {s === 'OVERALL' ? 'All' : s === 'PERSONAL' ? 'Personal' : 'Business'}
               </button>
             ))}
           </div>

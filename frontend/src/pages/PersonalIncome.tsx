@@ -41,9 +41,7 @@ const PersonalIncome: React.FC = () => {
 
   // Form State
   const { scope } = useScope();
-  const [formScope, setFormScope] = useState<'PERSONAL' | 'FAMILY'>(
-    scope === 'FAMILY' ? 'FAMILY' : 'PERSONAL'
-  );
+  const [formScope, setFormScope] = useState<'PERSONAL'>('PERSONAL');
   const [source, setSource] = useState('Salary');
   const [amountRupees, setAmountRupees] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -233,8 +231,7 @@ const PersonalIncome: React.FC = () => {
                     onChange={(e) => setFormScope(e.target.value as any)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 font-semibold"
                   >
-                    <option value="PERSONAL">Personal</option>
-                    <option value="FAMILY">Family</option>
+                    <option value="PERSONAL">Personal & Family</option>
                   </select>
                 </div>
                 <div>
