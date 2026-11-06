@@ -64,6 +64,24 @@ const router = Router();
 
 // ================= AUTH & PUBLIC ROUTES =================
 router.get('/ping', (_req, res) => res.json({ success: true, pong: true, time: Date.now() }));
+router.get('/cron/trigger-1230pm', async (_req, res) => {
+  try {
+    const { checkAndBroadcastDailySavingsReminder } = await import('../services/attendanceScheduler.js');
+    await checkAndBroadcastDailySavingsReminder();
+    res.json({ success: true, message: '12:30 PM Daily Savings Reminder triggered successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+router.get('/cron/trigger-930am', async (_req, res) => {
+  try {
+    const { executeAutoAbsentCheck } = await import('../services/attendanceScheduler.js');
+    const count = await executeAutoAbsentCheck();
+    res.json({ success: true, message: `9:30 AM Cutoff executed: ${count} staff auto-marked absent` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 router.post('/auth/login', login as any);
 router.post('/auth/register', register as any);
 router.post('/auth/validate-code', validateAccessCode as any);
