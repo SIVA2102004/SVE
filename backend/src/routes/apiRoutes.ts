@@ -35,6 +35,7 @@ import {
   createManualIncome,
   createExpense,
   voidTransaction,
+  deleteTransaction,
 } from '../controllers/transactionController.js';
 import { getLoans, createLoan, payEmiInstallment } from '../controllers/loanController.js';
 import { getStaff, createStaff, updateStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, runAutoAttendanceCheck } from '../controllers/staffController.js';
@@ -133,6 +134,7 @@ router.post('/transactions/income', createManualIncome as any);
 router.post('/transactions/expense', createExpense as any);
 router.post('/expenses', createExpense as any);
 router.post('/transactions/:id/void', requireRoles('OWNER', 'MANAGER'), voidTransaction as any);
+router.delete('/transactions/:id', requireRoles('OWNER'), deleteTransaction as any);
 
 // 5. Loans & EMIs
 router.get('/loans', getLoans as any);

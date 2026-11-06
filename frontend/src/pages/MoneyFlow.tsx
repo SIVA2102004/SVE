@@ -13,6 +13,7 @@ import {
   AlertOctagon,
   RefreshCw,
   FileSpreadsheet,
+  Trash2,
 } from 'lucide-react';
 
 const MoneyFlow: React.FC = () => {
@@ -77,6 +78,18 @@ const MoneyFlow: React.FC = () => {
       alert(err.response?.data?.message || err.response?.data?.error || 'Failed to void transaction');
     } finally {
       setVoidLoading(false);
+    }
+  };
+
+  const handleDeleteTransaction = async (tx: Transaction) => {
+    if (!window.confirm(`Permanently delete transaction "${tx.transactionNo}" (${formatINR(tx.amount)}) from database? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/transactions/${tx.id}`);
+      await fetchTransactions();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to delete transaction');
     }
   };
 
@@ -269,17 +282,24 @@ const MoneyFlow: React.FC = () => {
                     </td>
                     {hasRole(['OWNER']) && (
                       <td className="py-3 px-4 text-center">
-                        {!tx.isVoid ? (
+                        <div className="flex items-center justify-center space-x-1">
+                          {!tx.isVoid && (
+                            <button
+                              onClick={() => setVoidModalTx(tx)}
+                              title="Void this transaction with audit reason"
+                              className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                            >
+                              <AlertOctagon className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
-                            onClick={() => setVoidModalTx(tx)}
-                            title="Void this transaction with audit reason"
+                            onClick={() => handleDeleteTransaction(tx)}
+                            title="Permanently Delete Transaction"
                             className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
                           >
-                            <AlertOctagon className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
-                        ) : (
-                          <span className="text-xs text-slate-300">-</span>
-                        )}
+                        </div>
                       </td>
                     )}
                   </tr>

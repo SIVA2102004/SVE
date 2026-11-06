@@ -320,3 +320,84 @@ export const voidTransaction = async (req: AuthRequest, res: Response) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const deleteTransaction = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const tx = await prisma.transaction.findUnique({
+      where: { id },
+      include: { payment: true },
+    });
+
+    if (!tx) {
+      return res.status(404).json({ success: false, message: 'Transaction not found.' });
+    }
+
+    await prisma.$transaction(async (prismaTx) => {
+      // If transaction was not voided, reverse account and party balances
+      if (tx.status !== 'VOID') {
+        if (tx.paymentMethodAccountId) {
+          if (tx.type === 'INCOME' || tx.type === 'RECEIVABLE_PAYMENT') {
+            await prismaTx.paymentMethodAccount.update({
+              where: { id: tx.paymentMethodAccountId },
+              data: { currentBalance: { decrement: tx.amount } },
+            });
+          } else {
+            await prismaTx.paymentMethodAccount.update({
+              where: { id: tx.paymentMethodAccountId },
+              data: { currentBalance: { increment: tx.amount } },
+            });
+          }
+        }
+
+        if (tx.payment) {
+          if (tx.payment.customerId) {
+            await prismaTx.customer.update({
+              where: { id: tx.payment.customerId },
+              data: {
+                totalPaid: { decrement: tx.amount },
+                pendingBalance: { increment: tx.amount },
+              },
+            });
+          } else if (tx.payment.dealerId) {
+            await prismaTx.dealer.update({
+              where: { id: tx.payment.dealerId },
+              data: {
+                totalPaid: { decrement: tx.amount },
+                pendingBalance: { increment: tx.amount },
+              },
+            });
+          }
+        }
+      }
+
+      if (tx.paymentId) {
+        await prismaTx.payment.delete({ where: { id: tx.paymentId } });
+      }
+
+      await prismaTx.transaction.delete({ where: { id } });
+
+      try {
+        await prismaTx.auditLog.create({
+          data: {
+            userId: req.user?.id || null,
+            userEmail: req.user?.email || null,
+            action: 'DELETE_TRANSACTION',
+            entityType: 'TRANSACTION',
+            entityId: id,
+            amount: tx.amount,
+            details: JSON.stringify({ reference: tx.reference, category: tx.category }),
+          },
+        });
+      } catch (logErr) {
+        console.warn('AuditLog create failed non-fatally:', logErr);
+      }
+    });
+
+    broadcastEvent('transaction_deleted', { id });
+    res.json({ success: true, message: 'Transaction deleted successfully.' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
