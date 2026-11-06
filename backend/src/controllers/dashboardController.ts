@@ -28,15 +28,15 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
     ] = await Promise.all([
       // 1. Current Available Balance across all payment accounts
       prisma.paymentMethodAccount.findMany({ where: { isActive: true } }),
-      // 2. Total Customer Receivables
-      prisma.receivable.findMany({
-        where: { status: { in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] } },
-        select: { pendingAmount: true },
+      // 2. Total Customer Receivables (sum of all customer pending balances)
+      prisma.customer.findMany({
+        where: { pendingBalance: { gt: 0 } },
+        select: { pendingBalance: true },
       }),
-      // 3. Total Dealer Payables
-      prisma.payable.findMany({
-        where: { status: { in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] } },
-        select: { pendingAmount: true },
+      // 3. Total Dealer Payables (sum of all dealer pending balances)
+      prisma.dealer.findMany({
+        where: { pendingBalance: { gt: 0 } },
+        select: { pendingBalance: true },
       }),
       // 4. Today's Transactions
       prisma.transaction.findMany({
@@ -92,8 +92,8 @@ export const getDashboardMetrics = async (req: AuthRequest, res: Response) => {
     ]);
 
     const currentBalancePaise = accounts.reduce((sum, acc) => sum + acc.currentBalance, 0);
-    const totalReceivablePaise = pendingReceivables.reduce((sum, r) => sum + r.pendingAmount, 0);
-    const totalPayablePaise = pendingPayables.reduce((sum, p) => sum + p.pendingAmount, 0);
+    const totalReceivablePaise = pendingReceivables.reduce((sum, r) => sum + r.pendingBalance, 0);
+    const totalPayablePaise = pendingPayables.reduce((sum, p) => sum + p.pendingBalance, 0);
 
     let todayIncomePaise = 0;
     let todayExpensePaise = 0;
