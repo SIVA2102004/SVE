@@ -254,7 +254,7 @@ const StaffPage: React.FC = () => {
       setSalaryModal(null);
       setSalaryCalc(null);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to pay salary');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to pay salary');
     } finally {
       setSaving(false);
     }

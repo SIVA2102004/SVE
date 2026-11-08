@@ -220,9 +220,16 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
       const dealer = await tx.dealer.findUnique({ where: { id: dealerId } });
       if (!dealer) throw new Error('Dealer not found');
 
-      // 1. Generate receipt number
+      // 1. Generate guaranteed unique receipt number
       const count = await tx.payment.count();
-      const receiptNumber = `PAY-${String(count + 1001).padStart(5, '0')}`;
+      let receiptNumber = `PAY-${String(count + 1001).padStart(5, '0')}`;
+      let exists = await tx.payment.findUnique({ where: { receiptNumber } });
+      let counter = count + 1002;
+      while (exists) {
+        receiptNumber = `PAY-${String(counter).padStart(5, '0')}`;
+        exists = await tx.payment.findUnique({ where: { receiptNumber } });
+        counter++;
+      }
 
       // 2. Resolve target payable
       let targetPayableId = payableId;

@@ -214,7 +214,7 @@ const Customers: React.FC = () => {
       setNotes('');
       await fetchCustomers();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to record customer payment');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to record customer payment');
     } finally {
       setSaving(false);
     }

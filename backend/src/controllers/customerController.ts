@@ -213,9 +213,16 @@ export const recordCustomerPayment = async (req: AuthRequest, res: Response) => 
       const customer = await tx.customer.findUnique({ where: { id: customerId } });
       if (!customer) throw new Error('Customer not found');
 
-      // 1. Generate receipt number
+      // 1. Generate guaranteed unique receipt number
       const count = await tx.payment.count();
-      const receiptNumber = `REC-${String(count + 1001).padStart(5, '0')}`;
+      let receiptNumber = `REC-${String(count + 1001).padStart(5, '0')}`;
+      let exists = await tx.payment.findUnique({ where: { receiptNumber } });
+      let counter = count + 1002;
+      while (exists) {
+        receiptNumber = `REC-${String(counter).padStart(5, '0')}`;
+        exists = await tx.payment.findUnique({ where: { receiptNumber } });
+        counter++;
+      }
 
       // 2. Resolve target receivable
       let targetRecId = receivableId;

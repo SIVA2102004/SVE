@@ -111,7 +111,7 @@ const Loans: React.FC = () => {
         setActiveLoanSchedule(updated);
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to pay EMI');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to pay EMI');
     } finally {
       setSaving(false);
     }

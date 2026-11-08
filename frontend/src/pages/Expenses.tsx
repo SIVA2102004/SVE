@@ -80,7 +80,7 @@ const Expenses: React.FC = () => {
       setDescription('');
       await fetchExpenses();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to record expense');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to record expense');
     } finally {
       setSaving(false);
     }

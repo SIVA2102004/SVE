@@ -210,7 +210,7 @@ const Dealers: React.FC = () => {
       setNotes('');
       await fetchDealers();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to record dealer payment');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to record dealer payment');
     } finally {
       setSaving(false);
     }
