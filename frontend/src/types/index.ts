@@ -241,6 +241,20 @@ export interface ChitAuction {
   notes?: string;
 }
 
+export interface ChitPaymentLog {
+  id: string;
+  chitSchemeId: string;
+  installmentId: string;
+  amount: number; // in paise
+  paidDate: string;
+  paymentMethod: string;
+  paymentMethodAccountId?: string;
+  reference?: string;
+  receiptUrl?: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface ChitInstallment {
   id: string;
   chitSchemeId: string;
@@ -257,6 +271,7 @@ export interface ChitInstallment {
   upiTransactionId?: string;
   receiptUrl?: string;
   notes?: string;
+  paymentLogs?: ChitPaymentLog[];
   transaction?: {
     id: string;
     paymentMethodAccountId?: string;
@@ -280,6 +295,8 @@ export interface ChitScheme {
   endDate?: string;
   dueDayOfMonth: number;
   foremanCommissionPercent: number;
+  paymentFrequency?: 'DAILY' | 'BI_WEEKLY' | 'MONTHLY'; // DAILY, 15 DAYS, MONTHLY
+  targetDailyAmount?: number; // in paise (e.g. 2,000 INR)
   status: string; // ACTIVE, COMPLETED, CANCELLED
   isPrized: boolean;
   prizedMonth?: number;
@@ -296,4 +313,5 @@ export interface ChitScheme {
   notes?: string;
   installments?: ChitInstallment[];
   auctions?: ChitAuction[];
+  paymentLogs?: ChitPaymentLog[];
 }

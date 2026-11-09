@@ -82,6 +82,8 @@ const Chits: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [dueDayOfMonth, setDueDayOfMonth] = useState('10');
   const [foremanCommissionPercent, setForemanCommissionPercent] = useState('5');
+  const [paymentFrequency, setPaymentFrequency] = useState<'DAILY' | 'BI_WEEKLY' | 'MONTHLY'>('DAILY');
+  const [targetDailyAmountRupees, setTargetDailyAmountRupees] = useState('2000');
   const [chitStatus, setChitStatus] = useState('ACTIVE');
   const [notes, setNotes] = useState('');
 
@@ -275,6 +277,8 @@ const Chits: React.FC = () => {
     setEndDate('');
     setDueDayOfMonth('10');
     setForemanCommissionPercent('5');
+    setPaymentFrequency('DAILY');
+    setTargetDailyAmountRupees('2000');
     setChitStatus('ACTIVE');
     setNotes('');
     setCreateModalOpen(true);
@@ -296,6 +300,8 @@ const Chits: React.FC = () => {
     setEndDate(chit.endDate ? chit.endDate.split('T')[0] : '');
     setDueDayOfMonth(chit.dueDayOfMonth.toString());
     setForemanCommissionPercent((chit.foremanCommissionPercent || 5).toString());
+    setPaymentFrequency(chit.paymentFrequency || 'MONTHLY');
+    setTargetDailyAmountRupees(chit.targetDailyAmount ? (chit.targetDailyAmount / 100).toString() : '2000');
     setChitStatus(chit.status || 'ACTIVE');
     setNotes(chit.notes || '');
     setCreateModalOpen(true);
@@ -320,6 +326,8 @@ const Chits: React.FC = () => {
         endDate: endDate || undefined,
         dueDayOfMonth: parseInt(dueDayOfMonth),
         foremanCommissionPercent: parseFloat(foremanCommissionPercent),
+        paymentFrequency,
+        targetDailyAmountRupees: parseFloat(targetDailyAmountRupees) || 0,
         status: chitStatus,
         notes: notes || undefined,
       };
@@ -366,7 +374,18 @@ const Chits: React.FC = () => {
     const outstanding = Math.max(0, netDue - alreadyPaid);
 
     setPayingInstallment(inst || null);
-    setPayAmountRupees(outstanding > 0 ? outstanding.toString() : (chit.monthlyContribution / 100).toString());
+
+    // If chit is configured with DAILY or BI_WEEKLY payment frequency, default to targetDailyAmount (e.g. ₹2,000)
+    let defaultAmount: number;
+    if (chit.paymentFrequency === 'DAILY' && chit.targetDailyAmount && chit.targetDailyAmount > 0) {
+      defaultAmount = chit.targetDailyAmount / 100;
+    } else if (chit.paymentFrequency === 'BI_WEEKLY') {
+      defaultAmount = Math.round(netDue / 2);
+    } else {
+      defaultAmount = outstanding > 0 ? outstanding : chit.monthlyContribution / 100;
+    }
+
+    setPayAmountRupees(defaultAmount.toString());
     setPayDividendRupees((div / 100).toString());
     setPayMethod('UPI');
     setUpiRefId('');
@@ -922,6 +941,16 @@ const Chits: React.FC = () => {
                       <span className="text-slate-500">Monthly Contribution:</span>
                       <span className="font-bold text-amber-600">{formatINR(c.monthlyContribution)}</span>
                     </div>
+                    {c.paymentFrequency && c.paymentFrequency !== 'MONTHLY' && (
+                      <div className="flex justify-between items-center bg-amber-50/80 px-2 py-1 rounded-md text-[11px]">
+                        <span className="text-amber-800 font-semibold">
+                          {c.paymentFrequency === 'DAILY' ? 'Daily Target Deposit:' : '15-Days Target:'}
+                        </span>
+                        <span className="font-black text-amber-900">
+                          {formatINR(c.targetDailyAmount || (c.paymentFrequency === 'DAILY' ? 200000 : c.monthlyContribution / 2))}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500">Actual Money Paid:</span>
                       <span className="font-bold text-slate-800">{formatINR(paidSum)}</span>
@@ -1105,6 +1134,18 @@ const Chits: React.FC = () => {
                 <BarChart3 className="w-3.5 h-3.5" />
                 <span>Financial Summary & Cash Flow</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab('PAYMENT_LOGS' as any)}
+                className={`px-4 py-2.5 border-b-2 transition-all flex items-center space-x-1.5 ${
+                  (activeTab as string) === 'PAYMENT_LOGS'
+                    ? 'border-brand-600 text-brand-600 bg-white rounded-t-lg'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Daily / Partial Payment Logs ({activeChitDetail.paymentLogs?.length || 0})</span>
+              </button>
             </div>
 
             {/* Modal Content Body */}
@@ -1124,7 +1165,7 @@ const Chits: React.FC = () => {
                       className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Record Payment</span>
+                      <span>{activeChitDetail.paymentFrequency === 'DAILY' ? 'Record Daily Payment (₹2,000)' : 'Record Payment'}</span>
                     </button>
                   </div>
 
@@ -1172,7 +1213,14 @@ const Chits: React.FC = () => {
                                 {net.toLocaleString('en-IN')}
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-amber-600">
-                                {paid > 0 ? paid.toLocaleString('en-IN') : '-'}
+                                <div>
+                                  {paid > 0 ? paid.toLocaleString('en-IN') : '-'}
+                                  {inst.paymentLogs && inst.paymentLogs.length > 0 && (
+                                    <span className="block text-[9px] text-slate-400 font-semibold">
+                                      {inst.paymentLogs.length} payments
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-2.5 px-3">
                                 <span
@@ -1585,6 +1633,94 @@ const Chits: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* TAB 5: DAILY / PARTIAL PAYMENT LOGS */}
+              {(activeTab as string) === 'PAYMENT_LOGS' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">Daily & Partial Payment Activity</h4>
+                      <p className="text-xs text-slate-400">
+                        Every daily payment (e.g. ₹2,000) accumulates directly into your monthly instalment total.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => openPayModal(activeChitDetail)}
+                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{activeChitDetail.paymentFrequency === 'DAILY' ? 'Add Daily Payment (₹2,000)' : 'Record Payment'}</span>
+                    </button>
+                  </div>
+
+                  {(!activeChitDetail.paymentLogs || activeChitDetail.paymentLogs.length === 0) ? (
+                    <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Clock className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                      <p className="font-bold text-slate-700 text-sm">No partial or daily payment logs yet</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Payments recorded using the Pay button will appear here with exact timestamp, mode and amount.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold">
+                          <tr>
+                            <th className="py-2.5 px-3">Date & Time</th>
+                            <th className="py-2.5 px-3 text-right">Amount Paid</th>
+                            <th className="py-2.5 px-3">Payment Mode</th>
+                            <th className="py-2.5 px-3">UPI / UTR Reference</th>
+                            <th className="py-2.5 px-3">Notes</th>
+                            <th className="py-2.5 px-3 text-center">Receipt</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {activeChitDetail.paymentLogs.map((log) => (
+                            <tr key={log.id} className="hover:bg-slate-50">
+                              <td className="py-2.5 px-3 font-semibold text-slate-800">
+                                {new Date(log.paidDate).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-black text-amber-600 text-sm">
+                                {formatINR(log.amount)}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-bold text-slate-700">
+                                  {log.paymentMethod}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 font-mono text-slate-600">
+                                {log.reference || '-'}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-600">
+                                {log.notes || '-'}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                {log.receiptUrl ? (
+                                  <a
+                                    href={log.receiptUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 rounded bg-brand-50 text-brand-600 hover:text-brand-800 text-[10px] font-bold inline-flex items-center space-x-0.5"
+                                  >
+                                    <FileText className="w-3 h-3" />
+                                    <span>View</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-300">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1752,6 +1888,76 @@ const Chits: React.FC = () => {
                 </div>
               </div>
 
+              {/* PAYMENT FREQUENCY SELECTION: DAILY, 15 DAYS, MONTHLY */}
+              <div className="p-4 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
+                    Payment Plan / Frequency *
+                  </label>
+                  <span className="text-[10px] text-amber-800 font-semibold">How do you pay towards monthly due?</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentFrequency('DAILY');
+                      if (!targetDailyAmountRupees) setTargetDailyAmountRupees('2000');
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                      paymentFrequency === 'DAILY'
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Daily (₹2,000)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentFrequency('BI_WEEKLY')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                      paymentFrequency === 'BI_WEEKLY'
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    15 Days (Bi-Weekly)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentFrequency('MONTHLY')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                      paymentFrequency === 'MONTHLY'
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Monthly Due Day
+                  </button>
+                </div>
+
+                {paymentFrequency === 'DAILY' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      Daily Deposit Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. 2000"
+                      value={targetDailyAmountRupees}
+                      onChange={(e) => setTargetDailyAmountRupees(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs font-bold text-amber-950 focus:ring-2 focus:ring-amber-500 bg-white"
+                    />
+                    <span className="text-[10px] text-amber-800 mt-0.5 block">
+                      Pay ₹{targetDailyAmountRupees || 2000} daily whenever money is available. It accumulates automatically toward the monthly instalment.
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
@@ -1861,6 +2067,41 @@ const Chits: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
+              </div>
+
+              {/* QUICK AMOUNT SHORTCUTS FOR DAILY / 15 DAYS */}
+              <div className="flex items-center space-x-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Quick Amounts:</span>
+                <button
+                  type="button"
+                  onClick={() => setPayAmountRupees('2000')}
+                  className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[11px] transition-colors"
+                >
+                  ₹2,000 (Daily)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayAmountRupees('1000')}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] transition-colors"
+                >
+                  ₹1,000
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayAmountRupees('5000')}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] transition-colors"
+                >
+                  ₹5,000
+                </button>
+                {activeChitDetail.targetDailyAmount && (
+                  <button
+                    type="button"
+                    onClick={() => setPayAmountRupees((activeChitDetail.targetDailyAmount! / 100).toString())}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold text-[11px] transition-colors"
+                  >
+                    Target (₹{activeChitDetail.targetDailyAmount / 100})
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

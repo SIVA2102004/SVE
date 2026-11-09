@@ -448,6 +448,8 @@ model ChitScheme {
   endDate                   DateTime?
   dueDayOfMonth             Int       @default(10)
   foremanCommissionPercent  Float     @default(5.0) // % of total chit value (e.g. 5%)
+  paymentFrequency          String    @default("MONTHLY") // DAILY, BI_WEEKLY, MONTHLY
+  targetDailyAmount         Int       @default(0) // in paise (e.g. 2,000 INR = 200000 paise)
   status                    String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
   isPrized                  Boolean   @default(false) // Whether auction was won / payout received
   prizedMonth               Int?
@@ -467,6 +469,7 @@ model ChitScheme {
 
   installments ChitInstallment[]
   auctions     ChitAuction[]
+  paymentLogs  ChitPaymentLog[]
 
   @@index([scope])
   @@map("chit_schemes")
@@ -516,10 +519,34 @@ model ChitInstallment {
 
   chitScheme  ChitScheme   @relation(fields: [chitSchemeId], references: [id], onDelete: Cascade)
   transaction Transaction?
+  paymentLogs ChitPaymentLog[]
 
   @@index([chitSchemeId])
   @@index([dueDate])
   @@map("chit_installments")
+}
+
+model ChitPaymentLog {
+  id             String    @id @default(uuid())
+  chitSchemeId   String
+  installmentId  String
+  amount         Int       // in paise (e.g. 2000 INR = 200000 paise)
+  paidDate       DateTime  @default(now())
+  paymentMethod  String    @default("UPI") // CASH, UPI, BANK, CHEQUE
+  paymentMethodAccountId String?
+  reference      String?   // UPI Ref / UTR / Cheque #
+  receiptUrl     String?
+  notes          String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  chitScheme  ChitScheme      @relation(fields: [chitSchemeId], references: [id], onDelete: Cascade)
+  installment ChitInstallment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  @@index([chitSchemeId])
+  @@index([installmentId])
+  @@index([paidDate])
+  @@map("chit_payment_logs")
 }
 
 model PersonalIncome {

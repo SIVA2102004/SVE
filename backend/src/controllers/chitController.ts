@@ -63,10 +63,17 @@ export const getChitSchemes = async (req: AuthRequest, res: Response) => {
             transaction: {
               select: { id: true, paymentMethodAccountId: true, reference: true },
             },
+            paymentLogs: {
+              orderBy: { paidDate: 'desc' },
+            },
           },
         },
         auctions: {
           orderBy: { auctionMonth: 'asc' },
+        },
+        paymentLogs: {
+          orderBy: { paidDate: 'desc' },
+          take: 50,
         },
       },
     });
@@ -92,10 +99,16 @@ export const getChitById = async (req: AuthRequest, res: Response) => {
             transaction: {
               select: { id: true, paymentMethodAccountId: true, reference: true },
             },
+            paymentLogs: {
+              orderBy: { paidDate: 'desc' },
+            },
           },
         },
         auctions: {
           orderBy: { auctionMonth: 'asc' },
+        },
+        paymentLogs: {
+          orderBy: { paidDate: 'desc' },
         },
       },
     });
@@ -116,10 +129,16 @@ export const getChitById = async (req: AuthRequest, res: Response) => {
             transaction: {
               select: { id: true, paymentMethodAccountId: true, reference: true },
             },
+            paymentLogs: {
+              orderBy: { paidDate: 'desc' },
+            },
           },
         },
         auctions: {
           orderBy: { auctionMonth: 'asc' },
+        },
+        paymentLogs: {
+          orderBy: { paidDate: 'desc' },
         },
       },
     });
@@ -150,12 +169,15 @@ export const createChitScheme = async (req: AuthRequest, res: Response) => {
       endDate,
       dueDayOfMonth = 10,
       foremanCommissionPercent = 5.0,
+      paymentFrequency = 'MONTHLY',
+      targetDailyAmountRupees = 0,
       status = 'ACTIVE',
       notes,
     } = req.body;
 
     const totalValuePaise = rupeesToPaise(totalValueRupees);
     const parsedTotalMembers = parseInt(totalMembers) || 50;
+    const targetDailyAmountPaise = targetDailyAmountRupees ? rupeesToPaise(targetDailyAmountRupees) : 0;
     
     // Auto calculate monthlyContribution if not manually provided: Total Value / Total Members
     let monthlyContributionPaise: number;
@@ -192,6 +214,8 @@ export const createChitScheme = async (req: AuthRequest, res: Response) => {
         endDate: endDt,
         dueDayOfMonth: parseInt(dueDayOfMonth) || 10,
         foremanCommissionPercent: parseFloat(foremanCommissionPercent) || 5.0,
+        paymentFrequency: paymentFrequency || 'MONTHLY',
+        targetDailyAmount: targetDailyAmountPaise,
         status: status || 'ACTIVE',
         notes: notes || null,
       },
@@ -236,6 +260,8 @@ export const updateChitScheme = async (req: AuthRequest, res: Response) => {
       endDate,
       dueDayOfMonth,
       foremanCommissionPercent,
+      paymentFrequency,
+      targetDailyAmountRupees,
       status,
       notes,
     } = req.body;
@@ -257,6 +283,8 @@ export const updateChitScheme = async (req: AuthRequest, res: Response) => {
     if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
     if (dueDayOfMonth !== undefined) data.dueDayOfMonth = parseInt(dueDayOfMonth) || 10;
     if (foremanCommissionPercent !== undefined) data.foremanCommissionPercent = parseFloat(foremanCommissionPercent) || 5.0;
+    if (paymentFrequency !== undefined) data.paymentFrequency = paymentFrequency;
+    if (targetDailyAmountRupees !== undefined) data.targetDailyAmount = rupeesToPaise(targetDailyAmountRupees);
     if (status !== undefined) data.status = status;
     if (notes !== undefined) data.notes = notes || null;
 
@@ -633,8 +661,24 @@ export const payChitInstallment = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      // Advance current month if needed
-      if (targetMonth >= chit.currentMonth && chit.currentMonth < chit.totalMonths) {
+      // Record in ChitPaymentLog so user can view every daily / partial payment entry
+      await tx.chitPaymentLog.create({
+        data: {
+          chitSchemeId: chit.id,
+          installmentId: inst!.id,
+          amount: amountPaise,
+          paidDate: paidDate ? new Date(paidDate) : new Date(),
+          paymentMethod,
+          paymentMethodAccountId: paymentAccountId || null,
+          reference: upiTransactionId || null,
+          receiptUrl,
+          notes,
+          createdById: req.user!.id,
+        },
+      });
+
+      // Advance current month if needed (only if full net instalment is paid)
+      if (newStatus === 'PAID' && targetMonth >= chit.currentMonth && chit.currentMonth < chit.totalMonths) {
         await tx.chitScheme.update({
           where: { id: chit.id },
           data: { currentMonth: targetMonth + 1 },
