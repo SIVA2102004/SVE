@@ -40,15 +40,24 @@ import {
 import { getLoans, createLoan, payEmiInstallment } from '../controllers/loanController.js';
 import { getStaff, createStaff, updateStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, runAutoAttendanceCheck } from '../controllers/staffController.js';
 import {
+  getChitSchemes,
+  getChitById,
+  createChitScheme,
+  updateChitScheme,
+  deleteChitScheme,
+  recordChitAuction,
+  recordChitPrize,
+  payChitInstallment,
+  updateChitInstallment,
+  revertChitPayment,
+} from '../controllers/chitController.js';
+import {
   getPaymentAccounts,
   updatePaymentAccountBalance,
   getInsurancePolicies,
   createInsurancePolicy,
   updateInsurancePolicy,
   deleteInsurancePolicy,
-  getChitSchemes,
-  createChitScheme,
-  payChitInstallment,
   getPersonalIncomes,
   createPersonalIncome,
   getReminders,
@@ -171,8 +180,16 @@ router.delete('/reminders/:id', deleteReminder as any);
 
 // 8. Chit Funds & Personal Income
 router.get('/chits', getChitSchemes as any);
+router.get('/chits/:chitId', getChitById as any);
 router.post('/chits', requireRoles('OWNER', 'MANAGER'), createChitScheme as any);
-router.post('/chits/:chitId/pay', payChitInstallment as any);
+router.put('/chits/:chitId', requireRoles('OWNER', 'MANAGER'), updateChitScheme as any);
+router.patch('/chits/:chitId', requireRoles('OWNER', 'MANAGER'), updateChitScheme as any);
+router.delete('/chits/:chitId', requireRoles('OWNER', 'MANAGER'), deleteChitScheme as any);
+router.post('/chits/:chitId/auctions', requireRoles('OWNER', 'MANAGER'), recordChitAuction as any);
+router.post('/chits/:chitId/prize', requireRoles('OWNER', 'MANAGER'), recordChitPrize as any);
+router.post('/chits/:chitId/pay', uploadMiddleware.single('file'), payChitInstallment as any);
+router.put('/chits/installments/:installmentId', requireRoles('OWNER', 'MANAGER'), updateChitInstallment as any);
+router.delete('/chits/installments/:installmentId/payment', requireRoles('OWNER', 'MANAGER'), revertChitPayment as any);
 router.get('/personal-income', getPersonalIncomes as any);
 router.post('/personal-income', createPersonalIncome as any);
 

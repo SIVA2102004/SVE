@@ -225,3 +225,75 @@ export interface DashboardMetrics {
   }>;
   recentTransactions: Transaction[];
 }
+
+export interface ChitAuction {
+  id: string;
+  chitSchemeId: string;
+  auctionMonth: number;
+  auctionDate: string;
+  bidDiscountAmount: number; // in paise
+  winningMemberNumber?: string;
+  foremanCommissionAmount: number; // in paise
+  otherDeductionsAmount: number; // in paise
+  dividendPoolAmount: number; // in paise
+  dividendPerMember: number; // in paise
+  isUserWon: boolean;
+  notes?: string;
+}
+
+export interface ChitInstallment {
+  id: string;
+  chitSchemeId: string;
+  monthNumber: number;
+  dueDate: string;
+  amountExpected: number; // in paise (Original Instalment)
+  dividendEarned: number; // in paise (Dividend)
+  netInstalment?: number; // in paise (Net Instalment)
+  amountPaid: number; // in paise
+  paidDate?: string;
+  status: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
+  paymentMethod: string;
+  paymentMethodAccountId?: string;
+  upiTransactionId?: string;
+  receiptUrl?: string;
+  notes?: string;
+  transaction?: {
+    id: string;
+    paymentMethodAccountId?: string;
+    reference?: string;
+  };
+}
+
+export interface ChitScheme {
+  id: string;
+  scope: string;
+  chitName: string;
+  chitCompany: string;
+  chitNumber?: string;
+  totalValue: number; // in paise
+  totalMembers: number;
+  memberNumber?: string;
+  monthlyContribution: number; // in paise
+  totalMonths: number;
+  currentMonth: number;
+  startDate: string;
+  endDate?: string;
+  dueDayOfMonth: number;
+  foremanCommissionPercent: number;
+  status: string; // ACTIVE, COMPLETED, CANCELLED
+  isPrized: boolean;
+  prizedMonth?: number;
+  prizedAmount?: number; // in paise
+  winningDate?: string;
+  auctionDiscount?: number; // in paise
+  grossPrizeAmount?: number; // in paise
+  foremanCommissionAmount?: number; // in paise
+  otherDeductionsAmount?: number; // in paise
+  netPrizeAmount?: number; // in paise
+  prizeReceivedAmount?: number; // in paise
+  prizeReceivedDate?: string;
+  prizePaymentReference?: string;
+  notes?: string;
+  installments?: ChitInstallment[];
+  auctions?: ChitAuction[];
+}

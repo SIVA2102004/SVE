@@ -433,30 +433,66 @@ model InsurancePolicy {
 }
 
 model ChitScheme {
-  id                  String    @id @default(uuid())
-  scope               String    @default("PERSONAL") // PERSONAL, FAMILY, BUSINESS
-  chitName            String
-  chitCompany         String // e.g. Shriram Chits, Kapil Chits, Private Group
-  chitNumber          String?
-  totalValue          Int // in paise, e.g. 5,00,000 INR
-  monthlyContribution Int // in paise, e.g. 10,000 INR
-  totalMonths         Int // e.g. 50 months
-  currentMonth        Int       @default(1)
-  startDate           DateTime
-  endDate             DateTime?
-  dueDayOfMonth       Int       @default(10)
-  status              String    @default("ACTIVE") // ACTIVE, COMPLETED, SURRENDERED
-  isPrized            Boolean   @default(false) // Whether auction was won / payout received
-  prizedMonth         Int?
-  prizedAmount        Int? // Payout received in paise
-  notes               String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                        String    @id @default(uuid())
+  scope                     String    @default("PERSONAL") // PERSONAL, FAMILY, BUSINESS
+  chitName                  String
+  chitCompany               String // e.g. Shriram Chits, Kapil Chits, Private Group
+  chitNumber                String?
+  totalValue                Int // in paise, e.g. 5,00,000 INR
+  totalMembers              Int       @default(50) // Total members / tickets in chit
+  memberNumber              String?   // Ticket number / Member ID (e.g. T-14)
+  monthlyContribution       Int // in paise, e.g. 10,000 INR (Original Instalment)
+  totalMonths               Int // e.g. 50 months
+  currentMonth              Int       @default(1)
+  startDate                 DateTime
+  endDate                   DateTime?
+  dueDayOfMonth             Int       @default(10)
+  foremanCommissionPercent  Float     @default(5.0) // % of total chit value (e.g. 5%)
+  status                    String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  isPrized                  Boolean   @default(false) // Whether auction was won / payout received
+  prizedMonth               Int?
+  prizedAmount              Int? // Net payout received in paise
+  winningDate               DateTime?
+  auctionDiscount           Int? // in paise
+  grossPrizeAmount          Int? // in paise: totalValue - auctionDiscount
+  foremanCommissionAmount   Int? // in paise: totalValue * commission%
+  otherDeductionsAmount     Int? // in paise
+  netPrizeAmount            Int? // in paise: grossPrizeAmount - foremanCommissionAmount - otherDeductions
+  prizeReceivedAmount       Int? // in paise (actual amount received to date, allows partial)
+  prizeReceivedDate         DateTime?
+  prizePaymentReference     String? // Bank ref / Cheque / UTR
+  notes                     String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   installments ChitInstallment[]
+  auctions     ChitAuction[]
 
   @@index([scope])
   @@map("chit_schemes")
+}
+
+model ChitAuction {
+  id                      String     @id @default(uuid())
+  chitSchemeId            String
+  auctionMonth            Int
+  auctionDate             DateTime
+  bidDiscountAmount       Int        // in paise (Winning Bid / Discount)
+  winningMemberNumber     String?    // Member / Ticket who won
+  foremanCommissionAmount Int        // in paise
+  otherDeductionsAmount   Int        @default(0) // in paise
+  dividendPoolAmount      Int        // in paise: bidDiscountAmount - foremanCommissionAmount - otherDeductionsAmount
+  dividendPerMember       Int        // in paise: dividendPoolAmount / totalMembers
+  isUserWon               Boolean    @default(false)
+  notes                   String?
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+
+  chitScheme ChitScheme @relation(fields: [chitSchemeId], references: [id], onDelete: Cascade)
+
+  @@unique([chitSchemeId, auctionMonth])
+  @@index([chitSchemeId])
+  @@map("chit_auctions")
 }
 
 model ChitInstallment {
@@ -464,12 +500,15 @@ model ChitInstallment {
   chitSchemeId   String
   monthNumber    Int
   dueDate        DateTime
-  amountExpected Int // in paise
+  amountExpected Int // in paise (Original Instalment)
+  dividendEarned Int       @default(0) // in paise (Dividend Per Member)
+  netInstalment  Int?      // in paise (amountExpected - dividendEarned)
   amountPaid     Int       @default(0) // in paise
-  dividendEarned Int       @default(0) // in paise (discount)
   paidDate       DateTime?
-  status         String    @default("PENDING") // PENDING, PAID, OVERDUE
-  paymentMethod  String    @default("BANK")
+  status         String    @default("PENDING") // PENDING, PARTIALLY_PAID, PAID, OVERDUE
+  paymentMethod  String    @default("BANK") // CASH, UPI, BANK, CHEQUE
+  paymentMethodAccountId String?
+  upiTransactionId String?
   receiptUrl     String?
   notes          String?
   createdAt      DateTime  @default(now())
