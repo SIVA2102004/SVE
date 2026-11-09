@@ -26,7 +26,11 @@ export const getDealers = async (req: AuthRequest, res: Response) => {
         },
         payments: {
           orderBy: { date: 'desc' },
-          take: 5,
+          include: {
+            paymentMethodAccount: {
+              select: { id: true, name: true, type: true },
+            },
+          },
         },
       },
     });
@@ -38,6 +42,8 @@ export const getDealers = async (req: AuthRequest, res: Response) => {
       totalPayable: d.totalBilled,
       totalPaid: d.totalPaid,
       gstin: d.gstNumber,
+      payments: d.payments,
+      payables: d.payables,
     }));
 
     res.json(normalized);

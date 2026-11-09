@@ -16,6 +16,9 @@ import {
   Trash2,
   Calendar,
   UserCheck,
+  History,
+  FileText,
+  CheckCircle2,
 } from 'lucide-react';
 
 const Dealers: React.FC = () => {
@@ -26,6 +29,7 @@ const Dealers: React.FC = () => {
   const [editModalDealer, setEditModalDealer] = useState<Dealer | null>(null);
   const [paymentModalDealer, setPaymentModalDealer] = useState<Dealer | null>(null);
   const [billModalDealer, setBillModalDealer] = useState<Dealer | null>(null);
+  const [logModalDealer, setLogModalDealer] = useState<Dealer | null>(null);
 
   // Edit Dealer Form
   const [editName, setEditName] = useState('');
@@ -369,10 +373,28 @@ const Dealers: React.FC = () => {
                     <span className="text-[10px] uppercase font-bold text-slate-400">Total Billed</span>
                     <p className="text-xs font-bold text-slate-700">{formatINR(dealer.totalPayable)}</p>
                   </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-emerald-600">Total Paid</span>
+                    <p className="text-xs font-bold text-emerald-600">{formatINR(dealer.totalPaid || 0)}</p>
+                  </div>
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-rose-600">Pending Payable</span>
+                    <span className="text-[10px] uppercase font-bold text-rose-600">Pending</span>
                     <p className="text-sm font-black text-rose-600">{formatINR(dealer.pendingBalance)}</p>
                   </div>
+                </div>
+
+                {/* View Log Link Button */}
+                <div className="mt-2.5 flex items-center justify-between px-1">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {dealer.payments?.length || 0} payment(s) recorded
+                  </span>
+                  <button
+                    onClick={() => setLogModalDealer(dealer)}
+                    className="text-[11px] font-bold text-brand-600 hover:text-brand-700 hover:underline flex items-center space-x-1"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>View Log</span>
+                  </button>
                 </div>
               </div>
 
@@ -881,6 +903,205 @@ const Dealers: React.FC = () => {
                 {saving ? 'Updating...' : 'Save & Update Dealer'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW DEALER PAYMENT & BILL LOG MODAL */}
+      {logModalDealer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/70 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="font-bold text-base text-slate-800 flex items-center space-x-2">
+                  <span>{logModalDealer.name}</span>
+                  <span className="text-xs font-normal text-slate-500">
+                    ({logModalDealer.companyName || 'Supplier'})
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Payment History & Purchase Log
+                </p>
+              </div>
+              <button
+                onClick={() => setLogModalDealer(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Financial Summary Strip */}
+            <div className="p-4 bg-slate-100/70 border-b border-slate-200 grid grid-cols-3 gap-3 text-center">
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Billed</span>
+                <span className="text-sm font-black text-slate-800">
+                  {formatINR(logModalDealer.totalPayable)}
+                </span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs">
+                <span className="text-[10px] uppercase font-bold text-emerald-600 block">Total Paid</span>
+                <span className="text-sm font-black text-emerald-600">
+                  {formatINR(logModalDealer.totalPaid || 0)}
+                </span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs">
+                <span className="text-[10px] uppercase font-bold text-rose-600 block">Pending Balance</span>
+                <span className="text-sm font-black text-rose-600">
+                  {formatINR(logModalDealer.pendingBalance)}
+                </span>
+              </div>
+            </div>
+
+            {/* Content Tabs / Lists */}
+            <div className="p-5 overflow-y-auto space-y-6">
+              {/* Payment History List */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Payments Paid History ({logModalDealer.payments?.length || 0})</span>
+                  </h4>
+                  <button
+                    onClick={() => {
+                      const d = logModalDealer;
+                      setLogModalDealer(null);
+                      setPaymentModalDealer(d);
+                    }}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center space-x-1"
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    <span>+ Make New Payment</span>
+                  </button>
+                </div>
+
+                {!logModalDealer.payments || logModalDealer.payments.length === 0 ? (
+                  <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                    No payment transactions recorded yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {logModalDealer.payments.map((p) => (
+                      <div
+                        key={p.id}
+                        className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between hover:border-slate-300 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                            PAY
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs font-bold text-slate-800">{p.receiptNumber}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-slate-100 text-slate-600">
+                                {p.paymentMethod}
+                              </span>
+                              {p.paymentMethodAccount && (
+                                <span className="text-[10px] text-slate-400">
+                                  ({p.paymentMethodAccount.name})
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {new Date(p.date).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                              {p.notes ? ` • ${p.notes}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-black text-emerald-600">
+                            - {formatINR(p.amount)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Purchase Bills List */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
+                    <FileText className="w-4 h-4 text-brand-600" />
+                    <span>Purchase Bills Log ({logModalDealer.payables?.length || 0})</span>
+                  </h4>
+                  <button
+                    onClick={() => {
+                      const d = logModalDealer;
+                      setLogModalDealer(null);
+                      setBillModalDealer(d);
+                    }}
+                    className="text-xs font-bold text-brand-600 hover:text-brand-700"
+                  >
+                    + Add Bill
+                  </button>
+                </div>
+
+                {!logModalDealer.payables || logModalDealer.payables.length === 0 ? (
+                  <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                    No individual purchase bills attached. (Opening balance tracked on supplier profile)
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {logModalDealer.payables.map((b: any) => (
+                      <div
+                        key={b.id}
+                        className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold text-slate-800">
+                              {b.invoiceNumber || b.billNo || 'Bill'}
+                            </span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                b.status === 'PAID'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-rose-50 text-rose-700'
+                              }`}
+                            >
+                              {b.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Date: {new Date(b.purchaseDate || b.createdAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                            {b.notes ? ` • ${b.notes}` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-slate-700 block">
+                            Total: {formatINR(b.totalAmount)}
+                          </span>
+                          <span className="text-[11px] font-semibold text-rose-600">
+                            Due: {formatINR(b.pendingAmount)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button
+                onClick={() => setLogModalDealer(null)}
+                className="py-2 px-5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -65,6 +65,20 @@ export interface Dealer {
   totalPaid: number;
   pendingBalance: number;
   payables?: Payable[];
+  payments?: {
+    id: string;
+    receiptNumber: string;
+    date: string;
+    type: string;
+    amount: number;
+    paymentMethod: string;
+    notes?: string | null;
+    paymentMethodAccount?: {
+      id: string;
+      name: string;
+      type: string;
+    } | null;
+  }[];
 }
 
 export interface Payable {
