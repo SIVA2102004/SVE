@@ -41,6 +41,7 @@ import { getLoans, createLoan, payEmiInstallment } from '../controllers/loanCont
 import { getStaff, createStaff, updateStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, runAutoAttendanceCheck } from '../controllers/staffController.js';
 import {
   getPaymentAccounts,
+  updatePaymentAccountBalance,
   getInsurancePolicies,
   createInsurancePolicy,
   updateInsurancePolicy,
@@ -106,6 +107,8 @@ router.delete('/users/:userId', requireRoles('OWNER'), deleteUser as any);
 
 // Payment Accounts
 router.get('/payment-accounts', getPaymentAccounts as any);
+router.put('/payment-accounts/:id/balance', requireRoles('OWNER'), updatePaymentAccountBalance as any);
+router.patch('/payment-accounts/:id/balance', requireRoles('OWNER'), updatePaymentAccountBalance as any);
 
 // 1. Dashboard
 router.get('/dashboard', getDashboardMetrics as any);

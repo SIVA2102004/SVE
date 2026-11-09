@@ -17,6 +17,53 @@ export const getPaymentAccounts = async (_req: AuthRequest, res: Response) => {
   }
 };
 
+export const updatePaymentAccountBalance = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { balanceRupees, reason } = req.body;
+
+    if (balanceRupees === undefined || balanceRupees === null) {
+      return res.status(400).json({ success: false, message: 'Balance amount in rupees is required.' });
+    }
+
+    const newBalancePaise = rupeesToPaise(balanceRupees);
+
+    const account = await prisma.$transaction(async (tx) => {
+      const existing = await tx.paymentMethodAccount.findUnique({ where: { id } });
+      if (!existing) throw new Error('Account not found');
+
+      const updated = await tx.paymentMethodAccount.update({
+        where: { id },
+        data: { currentBalance: newBalancePaise },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          userEmail: req.user!.email,
+          action: 'ACCOUNT_BALANCE_ADJUSTED',
+          entityType: 'PAYMENT_ACCOUNT',
+          entityId: id,
+          amount: newBalancePaise,
+          details: JSON.stringify({
+            accountName: existing.name,
+            oldBalance: existing.currentBalance,
+            newBalance: newBalancePaise,
+            reason: reason || 'Manual opening/correction balance update',
+          }),
+        },
+      });
+
+      return updated;
+    });
+
+    broadcastEvent('payment_account_updated', account);
+    res.json({ success: true, message: 'Account balance updated successfully', account });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const getInsurancePolicies = async (req: AuthRequest, res: Response) => {
   try {
     const policies = await prisma.insurancePolicy.findMany({
