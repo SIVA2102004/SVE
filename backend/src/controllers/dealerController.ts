@@ -79,12 +79,14 @@ export const createDealer = async (req: AuthRequest, res: Response) => {
     const resolvedContact = contactPerson || collectorName || name;
     const resolvedCollector = collectorName || contactPerson || null;
     const resolvedGst = gstNumber || gstin;
+    const file = req.file;
 
     if (!name || !resolvedMobile) {
       return res.status(400).json({ success: false, message: 'Dealer name and mobile number are required.' });
     }
 
     const initialPaise = initialPayableAmountRupees ? rupeesToPaise(initialPayableAmountRupees) : 0;
+    const receiptUrl = file ? `/uploads/${file.filename}` : null;
 
     const dealer = await prisma.$transaction(async (tx) => {
       const newDealer = await tx.dealer.create({
@@ -107,7 +109,7 @@ export const createDealer = async (req: AuthRequest, res: Response) => {
       });
 
       if (initialPaise > 0) {
-        await tx.payable.create({
+        const payable = await tx.payable.create({
           data: {
             dealerId: newDealer.id,
             invoiceNumber: initialPayableInvoice || `PUR-${Date.now().toString().slice(-4)}`,
@@ -117,8 +119,24 @@ export const createDealer = async (req: AuthRequest, res: Response) => {
             dueDate: dueDate ? new Date(dueDate) : null,
             status: 'PENDING',
             notes: 'Opening purchase payable balance',
+            receiptUrl,
           },
         });
+
+        if (file) {
+          await tx.documentReceipt.create({
+            data: {
+              title: `Opening Bill: ${payable.invoiceNumber} (${resolvedCompany})`,
+              category: 'PURCHASE_INVOICE',
+              fileUrl: receiptUrl!,
+              fileName: file.originalname,
+              fileSize: file.size,
+              mimeType: file.mimetype,
+              referenceId: payable.id,
+              notes: 'Opening purchase bill attached during supplier setup',
+            },
+          });
+        }
       }
 
       await tx.auditLog.create({
@@ -147,11 +165,14 @@ export const createDealerPayable = async (req: AuthRequest, res: Response) => {
   try {
     const { dealerId } = req.params;
     const { invoiceNumber, totalAmountRupees, purchaseDate, dueDate, notes } = req.body;
+    const file = req.file;
 
     const amountPaise = rupeesToPaise(totalAmountRupees);
     if (amountPaise <= 0) {
       return res.status(400).json({ success: false, message: 'Purchase amount must be greater than zero.' });
     }
+
+    const receiptUrl = file ? `/uploads/${file.filename}` : req.body.receiptUrl || null;
 
     const payable = await prisma.$transaction(async (tx) => {
       const dealer = await tx.dealer.findUnique({ where: { id: dealerId } });
@@ -170,8 +191,25 @@ export const createDealerPayable = async (req: AuthRequest, res: Response) => {
           dueDate: dueDate ? new Date(dueDate) : null,
           status: 'PENDING',
           notes: notes || null,
+          receiptUrl,
         },
       });
+
+      // If document file uploaded, also index in DocumentReceipt / Vault
+      if (file) {
+        await tx.documentReceipt.create({
+          data: {
+            title: `Supplier Bill: ${invNo} (${dealer.companyName || dealer.name})`,
+            category: 'PURCHASE_INVOICE',
+            fileUrl: receiptUrl!,
+            fileName: file.originalname,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            referenceId: newPayable.id,
+            notes: notes || `Purchase bill uploaded for ${dealer.name}`,
+          },
+        });
+      }
 
       await tx.dealer.update({
         where: { id: dealerId },
@@ -206,6 +244,7 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
       paymentDate,
       idempotencyKey,
     } = req.body;
+    const file = req.file;
 
     const payPaise = rupeesToPaise(amountRupees);
     if (payPaise <= 0) {
@@ -213,6 +252,7 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
     }
 
     const txDate = paymentDate ? new Date(paymentDate) : new Date();
+    const receiptUrl = file ? `/uploads/${file.filename}` : req.body.receiptUrl || null;
 
     // Idempotency check
     if (idempotencyKey) {
@@ -259,10 +299,27 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
           dealerId,
           payableId: targetPayableId || null,
           notes,
+          receiptUrl,
           idempotencyKey: idempotencyKey || null,
           createdById: req.user!.id,
         },
       });
+
+      // If receipt/voucher document uploaded, index in DocumentReceipt / Vault
+      if (file) {
+        await tx.documentReceipt.create({
+          data: {
+            title: `Payment Receipt: ${receiptNumber} (${dealer.companyName || dealer.name})`,
+            category: 'DEALER_RECEIPT',
+            fileUrl: receiptUrl!,
+            fileName: file.originalname,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            referenceId: payment.id,
+            notes: notes || `Payment voucher/screenshot for ${dealer.name}`,
+          },
+        });
+      }
 
       // 4. Create financial transaction
       const transaction = await tx.transaction.create({

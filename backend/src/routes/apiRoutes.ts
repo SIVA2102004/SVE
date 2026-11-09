@@ -121,12 +121,12 @@ router.post('/customers/:customerId/payment', recordCustomerPayment as any);
 
 // 3. Dealers & Payables
 router.get('/dealers', getDealers as any);
-router.post('/dealers', createDealer as any);
+router.post('/dealers', uploadMiddleware.single('file'), createDealer as any);
 router.put('/dealers/:dealerId', updateDealer as any);
 router.delete('/dealers/:dealerId', requireRoles('OWNER'), deleteDealer as any);
-router.post('/dealers/:dealerId/payables', createDealerPayable as any);
-router.post('/dealers/:dealerId/pay', payDealer as any);
-router.post('/dealers/:dealerId/payment', payDealer as any);
+router.post('/dealers/:dealerId/payables', uploadMiddleware.single('file'), createDealerPayable as any);
+router.post('/dealers/:dealerId/pay', uploadMiddleware.single('file'), payDealer as any);
+router.post('/dealers/:dealerId/payment', uploadMiddleware.single('file'), payDealer as any);
 
 // 4. Money Flow & Transactions
 router.get('/transactions', getTransactions as any);

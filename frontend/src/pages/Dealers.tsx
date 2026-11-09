@@ -59,6 +59,7 @@ const Dealers: React.FC = () => {
   // Payment Form
   const [payAmount, setPayAmount] = useState('');
   const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
+  const [payFile, setPayFile] = useState<File | null>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAcc, setSelectedAcc] = useState('');
   const [payMode, setPayMode] = useState<'CASH' | 'BANK' | 'UPI'>('BANK');
@@ -69,6 +70,7 @@ const Dealers: React.FC = () => {
   const [billAmount, setBillAmount] = useState('');
   const [billDesc, setBillDesc] = useState('');
   const [billDueDate, setBillDueDate] = useState('');
+  const [billFile, setBillFile] = useState<File | null>(null);
 
   const [saving, setSaving] = useState(false);
   const { lastEvent } = useSocket();
@@ -104,20 +106,24 @@ const Dealers: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/dealers', {
-        name,
-        companyName: companyName || name,
-        collectorName: collectorName || undefined,
-        collectionDay: collectionDay || undefined,
-        collectionDate: collectionDate || undefined,
-        contactPerson: contactPerson || collectorName || undefined,
-        phone,
-        email,
-        gstin,
-        bankDetails,
-        initialPayableAmountRupees: initialDueAmount ? parseFloat(initialDueAmount) : 0,
-        initialPayableInvoice: initialBillNo || undefined,
-        dueDate: initialDueDate || undefined,
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('companyName', companyName || name);
+      if (collectorName) formData.append('collectorName', collectorName);
+      if (collectionDay) formData.append('collectionDay', collectionDay);
+      if (collectionDate) formData.append('collectionDate', collectionDate);
+      if (contactPerson) formData.append('contactPerson', contactPerson);
+      formData.append('phone', phone);
+      if (email) formData.append('email', email);
+      if (gstin) formData.append('gstin', gstin);
+      if (bankDetails) formData.append('bankDetails', bankDetails);
+      if (initialDueAmount) formData.append('initialPayableAmountRupees', initialDueAmount);
+      if (initialBillNo) formData.append('initialPayableInvoice', initialBillNo);
+      if (initialDueDate) formData.append('dueDate', initialDueDate);
+      if (billFile) formData.append('file', billFile);
+
+      await api.post('/dealers', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setNewDealerModal(false);
       setName('');
@@ -133,6 +139,7 @@ const Dealers: React.FC = () => {
       setInitialDueAmount('');
       setInitialBillNo('');
       setInitialDueDate('');
+      setBillFile(null);
       await fetchDealers();
     } catch (err: any) {
       alert(err.response?.data?.error || err.response?.data?.message || 'Failed to create dealer');
@@ -199,18 +206,25 @@ const Dealers: React.FC = () => {
     setSaving(true);
 
     try {
-      await api.post(`/dealers/${paymentModalDealer.id}/payment`, {
-        amountRupees: parseFloat(payAmount),
-        paymentAccountId: selectedAcc,
-        paymentMode: payMode,
-        paymentDate: payDate,
-        notes,
+      const formData = new FormData();
+      formData.append('amountRupees', payAmount);
+      formData.append('paymentAccountId', selectedAcc);
+      formData.append('paymentMode', payMode);
+      formData.append('paymentDate', payDate);
+      formData.append('notes', notes);
+      if (payFile) {
+        formData.append('file', payFile);
+      }
+
+      await api.post(`/dealers/${paymentModalDealer.id}/payment`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       alert(`Payment of ₹${payAmount} to ${paymentModalDealer.name} recorded!`);
       setPaymentModalDealer(null);
       setPayAmount('');
       setPayDate(new Date().toISOString().split('T')[0]);
+      setPayFile(null);
       setNotes('');
       await fetchDealers();
     } catch (err: any) {
@@ -226,20 +240,25 @@ const Dealers: React.FC = () => {
     setSaving(true);
 
     try {
-      await api.post(`/dealers/${billModalDealer.id}/payables`, {
-        billNo,
-        description: billDesc,
-        totalAmountRupees: parseFloat(billAmount),
-        dueDate: billDueDate,
+      const formData = new FormData();
+      formData.append('invoiceNumber', billNo || '');
+      formData.append('totalAmountRupees', billAmount);
+      formData.append('notes', billDesc || '');
+      if (billDueDate) formData.append('dueDate', billDueDate);
+      if (billFile) formData.append('file', billFile);
+
+      await api.post(`/dealers/${billModalDealer.id}/payables`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setBillModalDealer(null);
       setBillNo('');
       setBillAmount('');
       setBillDesc('');
       setBillDueDate('');
+      setBillFile(null);
       await fetchDealers();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to add dealer bill');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to add dealer bill');
     } finally {
       setSaving(false);
     }
@@ -602,6 +621,34 @@ const Dealers: React.FC = () => {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Upload Bill Photo / Invoice PDF (Optional)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setBillFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                  />
+                  {billFile && (
+                    <button
+                      type="button"
+                      onClick={() => setBillFile(null)}
+                      className="p-1 text-slate-400 hover:text-rose-600"
+                      title="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {billFile && (
+                  <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                    ✓ Attached: {billFile.name} ({(billFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={saving}
@@ -688,6 +735,34 @@ const Dealers: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Upload Payment Receipt / Screen / PDF (Optional)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setPayFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100"
+                  />
+                  {payFile && (
+                    <button
+                      type="button"
+                      onClick={() => setPayFile(null)}
+                      className="p-1 text-slate-400 hover:text-rose-600"
+                      title="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {payFile && (
+                  <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                    ✓ Attached: {payFile.name} ({(payFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={saving}
@@ -762,6 +837,34 @@ const Dealers: React.FC = () => {
                   onChange={(e) => setBillDueDate(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Upload Bill Photo / Invoice PDF (Optional)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setBillFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                  />
+                  {billFile && (
+                    <button
+                      type="button"
+                      onClick={() => setBillFile(null)}
+                      className="p-1 text-slate-400 hover:text-rose-600"
+                      title="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {billFile && (
+                  <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                    ✓ Attached: {billFile.name} ({(billFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
               </div>
               <button
                 type="submit"
@@ -1013,10 +1116,24 @@ const Dealers: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-sm font-black text-emerald-600">
-                            - {formatINR(p.amount)}
-                          </span>
+                        <div className="text-right flex items-center space-x-2">
+                          <div>
+                            <span className="text-sm font-black text-emerald-600 block">
+                              - {formatINR(p.amount)}
+                            </span>
+                          </div>
+                          {(p as any).receiptUrl && (
+                            <a
+                              href={(p as any).receiptUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="View Uploaded Receipt Document"
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold inline-flex items-center space-x-1"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>View File</span>
+                            </a>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1078,13 +1195,27 @@ const Dealers: React.FC = () => {
                             {b.notes ? ` • ${b.notes}` : ''}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <span className="text-xs font-bold text-slate-700 block">
-                            Total: {formatINR(b.totalAmount)}
-                          </span>
-                          <span className="text-[11px] font-semibold text-rose-600">
-                            Due: {formatINR(b.pendingAmount)}
-                          </span>
+                        <div className="text-right flex items-center space-x-2">
+                          <div>
+                            <span className="text-xs font-bold text-slate-700 block">
+                              Total: {formatINR(b.totalAmount)}
+                            </span>
+                            <span className="text-[11px] font-semibold text-rose-600 block">
+                              Due: {formatINR(b.pendingAmount)}
+                            </span>
+                          </div>
+                          {b.receiptUrl && (
+                            <a
+                              href={b.receiptUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="View Uploaded Bill / Invoice"
+                              className="p-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 rounded-lg text-xs font-bold inline-flex items-center space-x-1"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>View Bill</span>
+                            </a>
+                          )}
                         </div>
                       </div>
                     ))}
