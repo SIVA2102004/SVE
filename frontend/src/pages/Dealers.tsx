@@ -1124,7 +1124,11 @@ const Dealers: React.FC = () => {
                           </div>
                           {(p as any).receiptUrl && (
                             <a
-                              href={(p as any).receiptUrl}
+                              href={
+                                (p as any).receiptUrl.startsWith('http://') || (p as any).receiptUrl.startsWith('https://')
+                                  ? (p as any).receiptUrl
+                                  : `https://sve-filx.onrender.com${(p as any).receiptUrl}`
+                              }
                               target="_blank"
                               rel="noreferrer"
                               title="View Uploaded Receipt Document"
@@ -1206,7 +1210,11 @@ const Dealers: React.FC = () => {
                           </div>
                           {b.receiptUrl && (
                             <a
-                              href={b.receiptUrl}
+                              href={
+                                b.receiptUrl.startsWith('http://') || b.receiptUrl.startsWith('https://')
+                                  ? b.receiptUrl
+                                  : `https://sve-filx.onrender.com${b.receiptUrl}`
+                              }
                               target="_blank"
                               rel="noreferrer"
                               title="View Uploaded Bill / Invoice"
