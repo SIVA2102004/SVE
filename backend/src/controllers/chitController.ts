@@ -839,6 +839,11 @@ export const revertChitPayment = async (req: AuthRequest, res: Response) => {
         await tx.transaction.delete({ where: { id: existing.transaction.id } });
       }
 
+      // Also clean up any payment logs attached to this installment
+      await tx.chitPaymentLog.deleteMany({
+        where: { installmentId },
+      });
+
       await tx.chitInstallment.update({
         where: { id: installmentId },
         data: {
