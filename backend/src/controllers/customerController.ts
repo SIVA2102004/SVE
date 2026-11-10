@@ -118,7 +118,7 @@ export const createCustomerReceivable = async (req: AuthRequest, res: Response) 
     const { customerId } = req.params;
     const { invoiceNumber, totalAmountRupees, dueDate, notes } = req.body;
     const file = req.file;
-    const receiptUrl = file ? `/uploads/${file.filename}` : req.body.receiptUrl || null;
+    const receiptUrl = (req as any).fileUrl || (file ? `/uploads/${file.filename}` : req.body.receiptUrl || null);
 
     const amountPaise = rupeesToPaise(totalAmountRupees);
     if (amountPaise <= 0) {

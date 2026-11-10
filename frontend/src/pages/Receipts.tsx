@@ -175,7 +175,11 @@ const Receipts: React.FC = () => {
 
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <a
-                  href={`http://localhost:5000${r.filePath}`}
+                  href={
+                    r.filePath?.startsWith('http://') || r.filePath?.startsWith('https://')
+                      ? r.filePath
+                      : `https://sve-filx.onrender.com${r.filePath}`
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="text-xs text-brand-600 font-bold hover:underline flex items-center space-x-1"

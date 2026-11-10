@@ -359,7 +359,7 @@ export const uploadReceipt = async (req: AuthRequest, res: Response) => {
     if (!file) return res.status(400).json({ success: false, message: 'No file uploaded.' });
 
     const { title, category = 'OTHER', referenceId, notes } = req.body;
-    const fileUrl = `/uploads/${file.filename}`;
+    const fileUrl = (req as any).fileUrl || `/uploads/${file.filename}`;
 
     const receipt = await prisma.documentReceipt.create({
       data: {

@@ -172,7 +172,7 @@ export const createDealerPayable = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Purchase amount must be greater than zero.' });
     }
 
-    const receiptUrl = file ? `/uploads/${file.filename}` : req.body.receiptUrl || null;
+    const receiptUrl = (req as any).fileUrl || (file ? `/uploads/${file.filename}` : req.body.receiptUrl || null);
 
     const payable = await prisma.$transaction(async (tx) => {
       const dealer = await tx.dealer.findUnique({ where: { id: dealerId } });
@@ -252,7 +252,7 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
     }
 
     const txDate = paymentDate ? new Date(paymentDate) : new Date();
-    const receiptUrl = file ? `/uploads/${file.filename}` : req.body.receiptUrl || null;
+    const receiptUrl = (req as any).fileUrl || (file ? `/uploads/${file.filename}` : req.body.receiptUrl || null);
 
     // Idempotency check
     if (idempotencyKey) {
