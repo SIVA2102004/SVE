@@ -48,6 +48,48 @@ const Dealers: React.FC = () => {
   const [collectionDay, setCollectionDay] = useState('');
   const [collectionDate, setCollectionDate] = useState('');
   const [contactPerson, setContactPerson] = useState('');
+
+  // Calculate upcoming date for a day of the week (YYYY-MM-DD)
+  const getNextWeekdayDate = (dayName: string): string => {
+    if (!dayName) return '';
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const targetIdx = days.findIndex((d) => d.toLowerCase() === dayName.trim().toLowerCase());
+    if (targetIdx === -1) return '';
+
+    const today = new Date();
+    const currentIdx = today.getDay();
+    let diff = targetIdx - currentIdx;
+    if (diff < 0) {
+      diff += 7; // next week
+    }
+    const target = new Date();
+    target.setDate(today.getDate() + diff);
+
+    const year = target.getFullYear();
+    const month = String(target.getMonth() + 1).padStart(2, '0');
+    const day = String(target.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleCollectionDayChange = (selectedDay: string) => {
+    setCollectionDay(selectedDay);
+    if (selectedDay) {
+      const calculatedDate = getNextWeekdayDate(selectedDay);
+      if (calculatedDate) {
+        setCollectionDate(calculatedDate);
+      }
+    }
+  };
+
+  const handleEditCollectionDayChange = (selectedDay: string) => {
+    setEditCollectionDay(selectedDay);
+    if (selectedDay) {
+      const calculatedDate = getNextWeekdayDate(selectedDay);
+      if (calculatedDate) {
+        setEditCollectionDate(calculatedDate);
+      }
+    }
+  };
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [gstin, setGstin] = useState('');
@@ -524,7 +566,7 @@ const Dealers: React.FC = () => {
                   </label>
                   <select
                     value={collectionDay}
-                    onChange={(e) => setCollectionDay(e.target.value)}
+                    onChange={(e) => handleCollectionDayChange(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   >
                     <option value="">Select Visit Day</option>
@@ -549,6 +591,14 @@ const Dealers: React.FC = () => {
                   />
                 </div>
               </div>
+              {collectionDay && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-800">
+                  <span className="text-sm">🔄</span>
+                  <div>
+                    <span className="font-semibold">Auto-recurring reminder:</span> If pending balance remains, reminder will automatically repeat every <strong>{collectionDay}</strong> until balance is ₹0!
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -934,7 +984,7 @@ const Dealers: React.FC = () => {
                   </label>
                   <select
                     value={editCollectionDay}
-                    onChange={(e) => setEditCollectionDay(e.target.value)}
+                    onChange={(e) => handleEditCollectionDayChange(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   >
                     <option value="">Select Visit Day</option>
@@ -959,6 +1009,14 @@ const Dealers: React.FC = () => {
                   />
                 </div>
               </div>
+              {editCollectionDay && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-800">
+                  <span className="text-sm">🔄</span>
+                  <div>
+                    <span className="font-semibold">Auto-recurring reminder:</span> If pending balance remains, reminder will automatically repeat every <strong>{editCollectionDay}</strong> until balance is ₹0!
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
                   Phone Number

@@ -66,4 +66,25 @@ export function isPast1230PmIST(): boolean {
   return hour > 12 || (hour === 12 && minute >= 30);
 }
 
+/**
+ * Calculates next date for a given day name (e.g. "Monday", "Tuesday").
+ * If today is that day, returns today or next week's date.
+ */
+export function getNextDayOfWeekDate(dayName: string, fromDate = new Date()): Date {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const targetDayIndex = days.findIndex((d) => d.toLowerCase() === dayName.trim().toLowerCase());
+  if (targetDayIndex === -1) return fromDate;
+
+  const result = new Date(fromDate);
+  const currentDayIndex = result.getDay();
+  let diff = targetDayIndex - currentDayIndex;
+
+  // If today is the day or already passed, advance to next week (7 days)
+  if (diff <= 0) {
+    diff += 7;
+  }
+  result.setDate(result.getDate() + diff);
+  return result;
+}
+
 

@@ -1,7 +1,8 @@
 import cron from 'node-cron';
 import { prisma } from '../utils/prisma.js';
-import { getTodayIST, isPast930AmIST, isPast1230PmIST } from '../utils/date.js';
+import { getTodayIST, isPast930AmIST, isPast1230PmIST, getNextDayOfWeekDate } from '../utils/date.js';
 import { broadcastEvent } from '../websocket/socket.js';
+import { syncDealerReminder } from '../controllers/dealerController.js';
 
 /**
  * Executes the 9:30 AM Auto-Absent check for any unmarked staff.
@@ -189,7 +190,37 @@ export const initAttendanceScheduler = () => {
     async () => {
       console.log('⏰ [Reminders Cron 8:30 AM] Scanning pending payment & receipt reminders');
       try {
+        const todayIST = getTodayIST();
         const now = new Date();
+
+        // Auto-roll over dealer collection reminders if past visit date and pending balance still exists
+        const dealersWithBalance = await prisma.dealer.findMany({
+          where: {
+            status: 'ACTIVE',
+            pendingBalance: { gt: 0 },
+            collectionDay: { not: null },
+          },
+        });
+
+        for (const dealer of dealersWithBalance) {
+          if (dealer.collectionDate && new Date(dealer.collectionDate) < todayIST) {
+            // Visit date has passed and balance remains -> advance to next week's collection day
+            const nextDate = getNextDayOfWeekDate(dealer.collectionDay!, todayIST);
+            await prisma.dealer.update({
+              where: { id: dealer.id },
+              data: { collectionDate: nextDate },
+            });
+            await syncDealerReminder(
+              dealer.id,
+              dealer.name,
+              dealer.collectorName,
+              dealer.collectionDay,
+              nextDate,
+              dealer.pendingBalance
+            );
+          }
+        }
+
         const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
         const dueReminders = await prisma.reminder.findMany({

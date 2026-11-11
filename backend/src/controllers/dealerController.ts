@@ -3,6 +3,70 @@ import { prisma } from '../utils/prisma.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { rupeesToPaise } from '../utils/currency.js';
 import { broadcastEvent } from '../websocket/socket.js';
+import { getNextDayOfWeekDate } from '../utils/date.js';
+
+/**
+ * Helper to sync/create or advance dealer collection reminder
+ */
+export async function syncDealerReminder(
+  dealerId: string,
+  dealerName: string,
+  collectorName?: string | null,
+  collectionDay?: string | null,
+  collectionDate?: Date | string | null,
+  pendingBalancePaise: number = 0
+) {
+  // If no balance pending (balance is 0), complete/remove pending reminders for this dealer
+  if (pendingBalancePaise <= 0) {
+    await prisma.reminder.deleteMany({
+      where: { referenceId: dealerId, type: 'DEALER_DUE' },
+    });
+    return;
+  }
+
+  // Determine the reminder date: either given collectionDate or next week's collectionDay
+  let reminderDueDate: Date | null = null;
+  if (collectionDate) {
+    reminderDueDate = new Date(collectionDate);
+  } else if (collectionDay) {
+    reminderDueDate = getNextDayOfWeekDate(collectionDay);
+  }
+
+  if (!reminderDueDate) return;
+
+  const desc = `Collector ${collectorName ? `(${collectorName})` : ''} scheduled visit ${collectionDay ? `every ${collectionDay}` : ''}. Pending balance: ₹${(pendingBalancePaise / 100).toLocaleString('en-IN')}`;
+
+  // Check if active reminder exists
+  const existingReminder = await prisma.reminder.findFirst({
+    where: { referenceId: dealerId, type: 'DEALER_DUE' },
+  });
+
+  if (existingReminder) {
+    await prisma.reminder.update({
+      where: { id: existingReminder.id },
+      data: {
+        title: `Payable Due: ${dealerName}`,
+        description: desc,
+        dueDate: reminderDueDate,
+        amount: pendingBalancePaise,
+        isCompleted: false,
+      },
+    });
+  } else {
+    await prisma.reminder.create({
+      data: {
+        title: `Payable Due: ${dealerName}`,
+        description: desc,
+        dueDate: reminderDueDate,
+        amount: pendingBalancePaise,
+        type: 'DEALER_DUE',
+        referenceId: dealerId,
+        remindDays: 1,
+        isCompleted: false,
+      },
+    });
+  }
+}
 
 export const getDealers = async (req: AuthRequest, res: Response) => {
   try {
@@ -154,6 +218,18 @@ export const createDealer = async (req: AuthRequest, res: Response) => {
       return newDealer;
     });
 
+    // Auto-sync reminder for collection visit day / date if balance is pending
+    if (dealer.pendingBalance > 0 && (dealer.collectionDay || dealer.collectionDate)) {
+      await syncDealerReminder(
+        dealer.id,
+        dealer.companyName || dealer.name,
+        dealer.collectorName,
+        dealer.collectionDay,
+        dealer.collectionDate,
+        dealer.pendingBalance
+      );
+    }
+
     broadcastEvent('dealer_updated', { dealerId: dealer.id });
     res.status(201).json({ success: true, dealer });
   } catch (error: any) {
@@ -221,6 +297,19 @@ export const createDealerPayable = async (req: AuthRequest, res: Response) => {
 
       return newPayable;
     });
+
+    // Auto-sync reminder now that a new bill increased the pending balance
+    const refreshed = await prisma.dealer.findUnique({ where: { id: dealerId } });
+    if (refreshed && refreshed.pendingBalance > 0 && (refreshed.collectionDay || refreshed.collectionDate)) {
+      await syncDealerReminder(
+        refreshed.id,
+        refreshed.companyName || refreshed.name,
+        refreshed.collectorName,
+        refreshed.collectionDay,
+        refreshed.collectionDate,
+        refreshed.pendingBalance
+      );
+    }
 
     broadcastEvent('payable_created', { dealerId, payableId: payable.id });
     res.status(201).json({ success: true, payable });
@@ -384,8 +473,32 @@ export const payDealer = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      return { payment, transaction, receiptNumber };
+      return { payment, transaction, receiptNumber, newPending: dealer.pendingBalance - payPaise, dealer };
     });
+
+    // Auto-advance reminder: If balance still pending, schedule reminder for next week's visit
+    // If balance is 0, reminder is automatically cleared!
+    const refreshedDealer = await prisma.dealer.findUnique({ where: { id: dealerId } });
+    if (refreshedDealer) {
+      // If collectionDay is set, advance collectionDate to next week automatically
+      let nextVisitDate = refreshedDealer.collectionDate;
+      if (refreshedDealer.collectionDay) {
+        nextVisitDate = getNextDayOfWeekDate(refreshedDealer.collectionDay);
+        await prisma.dealer.update({
+          where: { id: dealerId },
+          data: { collectionDate: nextVisitDate },
+        });
+      }
+
+      await syncDealerReminder(
+        refreshedDealer.id,
+        refreshedDealer.companyName || refreshedDealer.name,
+        refreshedDealer.collectorName,
+        refreshedDealer.collectionDay,
+        nextVisitDate,
+        refreshedDealer.pendingBalance
+      );
+    }
 
     broadcastEvent('payment_recorded', {
       type: 'DEALER_PAYMENT',
@@ -473,6 +586,16 @@ export const updateDealer = async (req: AuthRequest, res: Response) => {
       where: { id: dealerId },
       data: updateData,
     });
+
+    // Auto-sync reminder whenever dealer visit day / date or pending balance is updated
+    await syncDealerReminder(
+      updated.id,
+      updated.companyName || updated.name,
+      updated.collectorName,
+      updated.collectionDay,
+      updated.collectionDate,
+      updated.pendingBalance
+    );
 
     broadcastEvent('dealer_updated', { dealerId: updated.id });
     res.json({ success: true, message: 'Dealer updated successfully', dealer: updated });
