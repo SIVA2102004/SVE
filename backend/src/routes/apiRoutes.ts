@@ -38,7 +38,7 @@ import {
   deleteTransaction,
 } from '../controllers/transactionController.js';
 import { getLoans, createLoan, payEmiInstallment } from '../controllers/loanController.js';
-import { getStaff, createStaff, updateStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, runAutoAttendanceCheck } from '../controllers/staffController.js';
+import { getStaff, createStaff, updateStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, getStaffAdvanceLogs, runAutoAttendanceCheck } from '../controllers/staffController.js';
 import {
   getChitSchemes,
   getChitById,
@@ -165,6 +165,8 @@ router.post('/staff/:staffId/salary/pay', requireRoles('OWNER', 'MANAGER'), calc
 router.post('/salary/pay', requireRoles('OWNER', 'MANAGER'), calculateAndPaySalary as any);
 router.post('/staff/advance', requireRoles('OWNER', 'MANAGER'), payAdvanceSalary as any);
 router.post('/staff/:staffId/advance', requireRoles('OWNER', 'MANAGER'), payAdvanceSalary as any);
+router.get('/staff/advance/logs', requireRoles('OWNER', 'MANAGER'), getStaffAdvanceLogs as any);
+router.get('/staff/:staffId/advance/logs', requireRoles('OWNER', 'MANAGER'), getStaffAdvanceLogs as any);
 router.post('/staff/attendance-timer-check', requireRoles('OWNER', 'MANAGER'), runAutoAttendanceCheck as any);
 
 // 7. Insurance & Reminders

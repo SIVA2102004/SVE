@@ -552,11 +552,14 @@ export const payAdvanceSalary = async (req: AuthRequest, res: Response) => {
           entityType: 'STAFF',
           entityId: staff.id,
           amount: amountPaise,
+          transactionId: transaction.id,
           details: JSON.stringify({
             staff: staff.name,
             amountRupees,
             date: advanceDate,
             paymentMethod,
+            reason: notes || 'Salary Advance',
+            notes: notes || '',
           }),
         },
       });
@@ -572,6 +575,89 @@ export const payAdvanceSalary = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Returns the history of advance disbursements given to a staff member (or all staff)
+ * along with purpose/notes, dates, payment method, and disbursing user.
+ */
+export const getStaffAdvanceLogs = async (req: AuthRequest, res: Response) => {
+  try {
+    const { staffId } = req.params;
+
+    const whereClause: any = {
+      action: 'STAFF_ADVANCE_PAID',
+      entityType: 'STAFF',
+    };
+    if (staffId) {
+      whereClause.entityId = staffId;
+    }
+
+    const logs = await prisma.auditLog.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        transaction: {
+          select: {
+            id: true,
+            description: true,
+            paymentMethod: true,
+            reference: true,
+            date: true,
+            paymentMethodAccount: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Format logs into clean readable objects
+    const formattedLogs = logs.map((log) => {
+      let parsedDetails: any = {};
+      try {
+        parsedDetails = log.details ? JSON.parse(log.details) : {};
+      } catch (e) {
+        parsedDetails = {};
+      }
+
+      const purpose =
+        parsedDetails.reason ||
+        parsedDetails.notes ||
+        log.transaction?.description ||
+        'Salary Advance';
+
+      return {
+        id: log.id,
+        staffId: log.entityId,
+        staffName: parsedDetails.staff || 'Staff Member',
+        amount: log.amount || 0, // in paise
+        amountRupees: (log.amount || 0) / 100,
+        date: parsedDetails.date || log.transaction?.date || log.createdAt,
+        paymentMethod: parsedDetails.paymentMethod || log.transaction?.paymentMethod || 'CASH',
+        accountName: log.transaction?.paymentMethodAccount?.name || null,
+        purpose,
+        notes: parsedDetails.notes || parsedDetails.reason || '',
+        paidBy: log.user?.name || log.userEmail || 'Store Owner',
+        createdAt: log.createdAt,
+      };
+    });
+
+    res.json({ success: true, logs: formattedLogs });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
