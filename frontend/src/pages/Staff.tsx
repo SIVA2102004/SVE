@@ -22,6 +22,7 @@ import {
   Bell,
   AlertTriangle,
   Edit2,
+  Trash2,
   FileText,
 } from 'lucide-react';
 
@@ -172,6 +173,22 @@ const StaffPage: React.FC = () => {
       alert(err.response?.data?.message || err.response?.data?.error || 'Failed to save staff member');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteStaff = async (staffId: string, staffName: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete "${staffName}"? This will permanently remove their profile, attendance records, and salary records.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.delete(`/staff/${staffId}`);
+      await fetchStaff();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to delete staff member');
     }
   };
 
@@ -402,16 +419,23 @@ const StaffPage: React.FC = () => {
                     <p className="text-xs font-semibold text-brand-600 mt-0.5">{st.designation}</p>
                     <p className="text-xs text-slate-400 mt-1">{st.phone}</p>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1.5">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase">
                       {st.status}
                     </span>
                     <button
                       onClick={() => openEditStaffModal(st)}
-                      title="Edit Employee Details"
+                      title="Edit Employee Profile"
                       className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition-colors"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteStaff(st.id, st.name)}
+                      title="Delete Employee Profile"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -576,13 +600,31 @@ const StaffPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 />
               </div>
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : editingStaff ? 'Update Employee' : 'Save Employee'}
-              </button>
+              <div className="flex items-center space-x-2 pt-2">
+                {editingStaff && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (editingStaff) {
+                        handleDeleteStaff(editingStaff.id, editingStaff.name);
+                        setNewStaffModal(false);
+                      }
+                    }}
+                    className="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-sm border border-rose-200 transition-colors flex items-center space-x-1.5"
+                    title="Delete Employee"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors"
+                >
+                  {saving ? 'Saving...' : editingStaff ? 'Update Employee' : 'Save Employee'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

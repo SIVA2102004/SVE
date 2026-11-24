@@ -38,7 +38,7 @@ import {
   deleteTransaction,
 } from '../controllers/transactionController.js';
 import { getLoans, createLoan, payEmiInstallment } from '../controllers/loanController.js';
-import { getStaff, createStaff, updateStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, getStaffAdvanceLogs, runAutoAttendanceCheck } from '../controllers/staffController.js';
+import { getStaff, createStaff, updateStaff, deleteStaff, markAttendance, calculateAndPaySalary, payAdvanceSalary, getStaffAdvanceLogs, runAutoAttendanceCheck } from '../controllers/staffController.js';
 import {
   getChitSchemes,
   getChitById,
@@ -158,6 +158,7 @@ router.get('/staff', getStaff as any);
 router.post('/staff', requireRoles('OWNER', 'MANAGER'), createStaff as any);
 router.put('/staff/:id', requireRoles('OWNER', 'MANAGER'), updateStaff as any);
 router.patch('/staff/:id', requireRoles('OWNER', 'MANAGER'), updateStaff as any);
+router.delete('/staff/:id', requireRoles('OWNER', 'MANAGER'), deleteStaff as any);
 router.post('/staff/attendance', markAttendance as any);
 router.post('/attendance', markAttendance as any);
 router.get('/staff/:staffId/salary/calculate', calculateAndPaySalary as any);

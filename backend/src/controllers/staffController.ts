@@ -157,6 +157,60 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const deleteStaff = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const staff = await prisma.staff.findUnique({
+      where: { id },
+      include: {
+        attendance: true,
+        salaryRecords: true,
+      },
+    });
+
+    if (!staff) {
+      return res.status(404).json({ success: false, message: 'Staff member not found' });
+    }
+
+    // Cascade deletes attendance and salaryRecords due to Prisma schema onDelete: Cascade
+    await prisma.staff.delete({
+      where: { id },
+    });
+
+    // Also clean up any audit logs specifically tied to this staff entity
+    try {
+      await prisma.auditLog.deleteMany({
+        where: { entityType: 'STAFF', entityId: id },
+      });
+    } catch (e) {
+      // Ignore if audit log constraint
+    }
+
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          userEmail: req.user.email,
+          action: 'STAFF_DELETED',
+          entityType: 'STAFF',
+          entityId: id,
+          details: JSON.stringify({
+            name: staff.name,
+            mobile: staff.mobile,
+            deletedAt: new Date(),
+          }),
+        },
+      });
+    }
+
+    broadcastEvent('staff_deleted', { id, name: staff.name });
+    res.json({ success: true, message: `Staff member "${staff.name}" deleted successfully` });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const markAttendance = async (req: AuthRequest, res: Response) => {
   try {
     const { staffId, date, status, notes } = req.body;
