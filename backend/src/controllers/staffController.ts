@@ -45,6 +45,7 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
       monthlySalaryRupees,
       dailyWageRupees,
       bankDetails,
+      paidLeavesAllowed = 0,
       notes,
     } = req.body;
 
@@ -55,6 +56,13 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
 
     const monthlyPaise = monthlySalaryRupees ? rupeesToPaise(monthlySalaryRupees) : 0;
     const dailyPaise = dailyWageRupees ? rupeesToPaise(dailyWageRupees) : 0;
+    const leavesAllowed = Math.max(0, parseInt(String(paidLeavesAllowed)) || 0);
+
+    const notesPayload = JSON.stringify({
+      designation: designation || 'Staff Member',
+      paidLeavesAllowed: leavesAllowed,
+      customNotes: notes || '',
+    });
 
     const staffMember = await prisma.staff.create({
       data: {
@@ -65,7 +73,7 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
         monthlySalary: monthlyPaise,
         dailyWage: dailyPaise,
         bankDetails: bankDetails || null,
-        notes: notes || designation ? `Designation: ${designation || 'Staff Member'}` : null,
+        notes: notesPayload,
       },
     });
 
@@ -83,6 +91,7 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
             mobile: staffMember.mobile,
             designation,
             monthlySalaryRupees,
+            paidLeavesAllowed: leavesAllowed,
           }),
         },
       });
@@ -108,6 +117,7 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
       monthlySalaryRupees,
       dailyWageRupees,
       bankDetails,
+      paidLeavesAllowed,
       notes,
       status,
     } = req.body;
@@ -122,8 +132,30 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
     if (dailyWageRupees !== undefined) data.dailyWage = rupeesToPaise(dailyWageRupees);
     if (bankDetails !== undefined) data.bankDetails = bankDetails || null;
     if (status !== undefined) data.status = status;
-    if (designation !== undefined || notes !== undefined) {
-      data.notes = notes || (designation ? `Designation: ${designation}` : null);
+
+    // Fetch existing staff to maintain notes properties
+    if (designation !== undefined || paidLeavesAllowed !== undefined || notes !== undefined) {
+      const existing = await prisma.staff.findUnique({ where: { id } });
+      let existingObj: any = {};
+      if (existing?.notes) {
+        try {
+          existingObj = JSON.parse(existing.notes);
+        } catch {
+          if (existing.notes.startsWith('Designation:')) {
+            existingObj = { designation: existing.notes.replace('Designation:', '').trim(), paidLeavesAllowed: 0 };
+          } else {
+            existingObj = { designation: 'Staff Member', customNotes: existing.notes, paidLeavesAllowed: 0 };
+          }
+        }
+      }
+
+      const mergedNotes = {
+        designation: designation !== undefined ? designation : (existingObj.designation || 'Staff Member'),
+        paidLeavesAllowed: paidLeavesAllowed !== undefined ? Math.max(0, parseInt(String(paidLeavesAllowed)) || 0) : (existingObj.paidLeavesAllowed || 0),
+        customNotes: notes !== undefined ? notes : (existingObj.customNotes || ''),
+      };
+
+      data.notes = JSON.stringify(mergedNotes);
     }
 
     const updatedStaff = await prisma.staff.update({
@@ -298,6 +330,7 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
       staffId: bodyStaffId,
       month: bodyMonth,
       year: bodyYear,
+      paidLeaves: queryPaidLeaves,
       advanceRupees = 0,
       bonusRupees = 0,
       deductionRupees = 0,
@@ -313,6 +346,24 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     });
 
     if (!staff) return res.status(404).json({ success: false, message: 'Staff member not found.' });
+
+    // Extract default paidLeavesAllowed from staff notes if present
+    let defaultPaidLeaves = 0;
+    if (staff.notes) {
+      try {
+        const parsed = JSON.parse(staff.notes);
+        if (typeof parsed.paidLeavesAllowed === 'number') {
+          defaultPaidLeaves = parsed.paidLeavesAllowed;
+        }
+      } catch {
+        // regular string note
+      }
+    }
+
+    const appliedPaidLeaves =
+      queryPaidLeaves !== undefined && queryPaidLeaves !== null && queryPaidLeaves !== ''
+        ? Math.max(0, parseFloat(String(queryPaidLeaves)) || 0)
+        : defaultPaidLeaves;
 
     // Calculate attendance for specified month
     let m = new Date().getMonth() + 1;
@@ -352,20 +403,21 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     });
 
     const effectivePresentDays = presentDays + halfDays * 0.5;
-    const workingDaysStandard = 26;
+    // Total payable days includes present days plus paid leaves (capped at total days in month)
+    const effectivePayableDays = Math.min(totalDaysInMonth, effectivePresentDays + appliedPaidLeaves);
 
     let baseSalaryPaise = staff.monthlySalary;
     let calculatedSalaryPaise = baseSalaryPaise;
 
-    // Daily rate based on 30 calendar days or actual month days (₹11,500 / 30 = ₹383.33/day)
+    // Daily rate based on total days in month (₹11,500 / 30 = ₹383.33/day)
     const dailyRatePaise = Math.round(baseSalaryPaise / (totalDaysInMonth || 30));
 
     if (staff.salaryType === 'DAILY') {
-      calculatedSalaryPaise = Math.round(effectivePresentDays * staff.dailyWage);
+      calculatedSalaryPaise = Math.round(effectivePayableDays * staff.dailyWage);
     } else {
-      // User requirement: Pay strictly for TOTAL AMOUNT OF PRESENT DAYS ONLY
-      // e.g. 1 Day Present * ₹383.33/day = ₹383.33
-      calculatedSalaryPaise = Math.round(effectivePresentDays * dailyRatePaise);
+      // User rule: Total payable days = Present Days + Paid Leaves
+      // e.g., 20 days present + 3 days paid leaves = 23 days salary
+      calculatedSalaryPaise = Math.round(effectivePayableDays * dailyRatePaise);
     }
 
     // Check existing advance already taken for this month in salaryRecord
@@ -388,7 +440,8 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
     // If it's a GET request, just return the calculation breakdown
     if (req.method === 'GET') {
       const effectiveAbsentDays = absentDays + halfDays * 0.5;
-      const absentDeductionRupees = Math.round(effectiveAbsentDays * dailyRatePaise) / 100;
+      const unexcusedAbsentDays = Math.max(0, effectiveAbsentDays - appliedPaidLeaves);
+      const absentDeductionRupees = Math.round(unexcusedAbsentDays * dailyRatePaise) / 100;
 
       return res.json({
         success: true,
@@ -401,6 +454,8 @@ export const calculateAndPaySalary = async (req: AuthRequest, res: Response) => 
         presentDays: effectivePresentDays,
         absentDays,
         effectiveAbsentDays,
+        paidLeaves: appliedPaidLeaves,
+        effectivePayableDays,
         absentDeductionRupees,
         baseSalaryRupees: baseSalaryPaise / 100,
         calculatedSalaryRupees: calculatedSalaryPaise / 100,

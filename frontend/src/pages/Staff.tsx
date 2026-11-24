@@ -44,6 +44,7 @@ const StaffPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [designation, setDesignation] = useState('');
   const [monthlySalaryRupees, setMonthlySalaryRupees] = useState('');
+  const [paidLeavesAllowed, setPaidLeavesAllowed] = useState('0');
 
   // Advance Form
   const [advanceAmount, setAdvanceAmount] = useState('');
@@ -68,6 +69,7 @@ const StaffPage: React.FC = () => {
   // Salary Payment Form
   const [month, setMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [salaryCalc, setSalaryCalc] = useState<any>(null);
+  const [salaryPaidLeaves, setSalaryPaidLeaves] = useState('0');
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAcc, setSelectedAcc] = useState('');
   const [saving, setSaving] = useState(false);
@@ -77,13 +79,31 @@ const StaffPage: React.FC = () => {
       setLoading(true);
       const [sRes, aRes] = await Promise.all([api.get('/staff'), api.get('/payment-accounts')]);
       const list = Array.isArray(sRes.data) ? sRes.data : sRes.data?.staff || [];
-      const normalized = list.map((st: any) => ({
-        ...st,
-        phone: st.mobile,
-        designation: st.designation || (st.notes && st.notes.startsWith('Designation:') ? st.notes.replace('Designation:', '').trim() : 'Staff Member'),
-        status: st.status || 'ACTIVE',
-        attendance: Array.isArray(st.attendance) ? st.attendance : [],
-      }));
+      const normalized = list.map((st: any) => {
+        let desig = 'Staff Member';
+        let leaves = 0;
+        if (st.notes) {
+          try {
+            const parsed = JSON.parse(st.notes);
+            desig = parsed.designation || desig;
+            leaves = typeof parsed.paidLeavesAllowed === 'number' ? parsed.paidLeavesAllowed : 0;
+          } catch {
+            if (st.notes.startsWith('Designation:')) {
+              desig = st.notes.replace('Designation:', '').trim();
+            }
+          }
+        }
+        if (st.designation) desig = st.designation;
+
+        return {
+          ...st,
+          phone: st.mobile,
+          designation: desig,
+          paidLeavesAllowed: leaves,
+          status: st.status || 'ACTIVE',
+          attendance: Array.isArray(st.attendance) ? st.attendance : [],
+        };
+      });
       setStaffList(normalized);
       const accList = Array.isArray(aRes.data) ? aRes.data : aRes.data?.accounts || [];
       setAccounts(accList);
@@ -131,6 +151,7 @@ const StaffPage: React.FC = () => {
     setPhone('');
     setDesignation('');
     setMonthlySalaryRupees('');
+    setPaidLeavesAllowed('0');
     setEditingStaff(null);
   };
 
@@ -145,6 +166,7 @@ const StaffPage: React.FC = () => {
     setPhone(st.phone || '');
     setDesignation(st.designation || '');
     setMonthlySalaryRupees(st.monthlySalary ? (st.monthlySalary / 100).toString() : '');
+    setPaidLeavesAllowed(st.paidLeavesAllowed !== undefined ? String(st.paidLeavesAllowed) : '0');
     setNewStaffModal(true);
   };
 
@@ -158,6 +180,7 @@ const StaffPage: React.FC = () => {
         mobile: phone,
         designation,
         monthlySalaryRupees: parseFloat(monthlySalaryRupees),
+        paidLeavesAllowed: parseInt(paidLeavesAllowed) || 0,
       };
 
       if (editingStaff) {
@@ -247,10 +270,23 @@ const StaffPage: React.FC = () => {
     }
   };
 
-  const openSalaryModal = async (staff: Staff, targetMonth = month) => {
+  const openSalaryModal = async (staff: Staff, targetMonth = month, customPaidLeaves?: string) => {
     setSalaryModal(staff);
+    const leaves = customPaidLeaves !== undefined ? customPaidLeaves : String(staff.paidLeavesAllowed || 0);
+    setSalaryPaidLeaves(leaves);
     try {
-      const res = await api.get(`/staff/${staff.id}/salary/calculate?month=${targetMonth}`);
+      const res = await api.get(`/staff/${staff.id}/salary/calculate?month=${targetMonth}&paidLeaves=${leaves}`);
+      setSalaryCalc(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePaidLeavesChange = async (newLeaves: string) => {
+    setSalaryPaidLeaves(newLeaves);
+    if (!salaryModal) return;
+    try {
+      const res = await api.get(`/staff/${salaryModal.id}/salary/calculate?month=${month}&paidLeaves=${newLeaves}`);
       setSalaryCalc(res.data);
     } catch (err) {
       console.error(err);
@@ -264,6 +300,7 @@ const StaffPage: React.FC = () => {
     try {
       await api.post(`/staff/${salaryModal.id}/salary/pay`, {
         month,
+        paidLeaves: parseFloat(salaryPaidLeaves) || 0,
         amountRupees: salaryCalc.payableRupees,
         paymentAccountId: selectedAcc,
         presentDays: salaryCalc.presentDays,
@@ -271,7 +308,7 @@ const StaffPage: React.FC = () => {
         bonusRupees: 0,
         deductionRupees: 0,
       });
-      alert(`Salary payment of ₹${salaryCalc.payableRupees} to ${salaryModal.name} recorded!`);
+      alert(`Salary payment of ₹${salaryCalc.payableRupees.toLocaleString('en-IN')} to ${salaryModal.name} recorded!`);
       setSalaryModal(null);
       setSalaryCalc(null);
     } catch (err: any) {
@@ -445,6 +482,12 @@ const StaffPage: React.FC = () => {
                     <span className="text-[10px] uppercase font-bold text-slate-400">Monthly Salary</span>
                     <p className="text-sm font-black text-slate-800">{formatINR(st.monthlySalary)}</p>
                   </div>
+                  <div className="text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Paid Leaves</span>
+                    <p className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md mt-0.5">
+                      {st.paidLeavesAllowed || 0} days/mo
+                    </p>
+                  </div>
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-slate-400">Daily Rate</span>
                     <p className="text-xs font-bold text-slate-600">{formatINR(st.dailyRate || Math.round(st.monthlySalary / 30))} / day</p>
@@ -573,18 +616,36 @@ const StaffPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Designation / Role *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Billing Assistant / Mechanic"
-                  value={designation}
-                  onChange={(e) => setDesignation(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Designation / Role *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Billing Assistant / Mechanic"
+                    value={designation}
+                    onChange={(e) => setDesignation(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Monthly Paid Leaves
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 3"
+                    value={paidLeavesAllowed}
+                    onChange={(e) => setPaidLeavesAllowed(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Leaves compensated with full pay
+                  </span>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
@@ -715,19 +776,37 @@ const StaffPage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handlePaySalary} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Salary Month
-                </label>
-                <input
-                  type="month"
-                  value={month}
-                  onChange={(e) => {
-                    setMonth(e.target.value);
-                    if (salaryModal) openSalaryModal(salaryModal, e.target.value);
-                  }}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Salary Month
+                  </label>
+                  <input
+                    type="month"
+                    value={month}
+                    onChange={(e) => {
+                      setMonth(e.target.value);
+                      if (salaryModal) openSalaryModal(salaryModal, e.target.value, salaryPaidLeaves);
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Paid Leaves Allowed (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={salaryPaidLeaves}
+                    onChange={(e) => handlePaidLeavesChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-indigo-300 bg-indigo-50/40 rounded-xl text-sm font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Defaults from employee profile, editable for this payout
+                  </span>
+                </div>
               </div>
 
               {salaryCalc ? (
@@ -745,11 +824,19 @@ const StaffPage: React.FC = () => {
                     <span className="font-bold text-emerald-600">{salaryCalc.presentDays} days</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Days Absent:</span>
+                    <span className="text-slate-500">Days Absent (in Attendance Log):</span>
                     <span className="font-bold text-rose-600">{salaryCalc.absentDays} days</span>
                   </div>
+                  {salaryCalc.paidLeaves > 0 && (
+                    <div className="flex justify-between text-indigo-700 font-semibold bg-indigo-50/70 p-2 rounded-lg">
+                      <span>Paid Leaves Approved:</span>
+                      <span className="font-bold">+ {salaryCalc.paidLeaves} days</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-emerald-700 font-semibold bg-emerald-50/70 p-2 rounded-lg">
-                    <span>Pay for Present Days ({salaryCalc.presentDays} days × ₹{(salaryCalc.dailyRateRupees || 0).toFixed(2)}):</span>
+                    <span>
+                      Pay for {salaryCalc.effectivePayableDays} Days ({salaryCalc.presentDays} Present + {salaryCalc.paidLeaves || 0} Paid Leaves × ₹{(salaryCalc.dailyRateRupees || 0).toFixed(2)}):
+                    </span>
                     <span className="font-bold">₹{Number(salaryCalc.calculatedSalaryRupees || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   {salaryCalc.advanceRupees > 0 && (

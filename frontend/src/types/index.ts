@@ -128,6 +128,7 @@ export interface Staff {
   monthlySalary: number; // in paise
   dailyWage?: number; // in paise
   dailyRate: number; // in paise
+  paidLeavesAllowed?: number;
   joiningDate: string;
   status: 'ACTIVE' | 'INACTIVE';
   attendance?: Attendance[];
